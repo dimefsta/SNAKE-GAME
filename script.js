@@ -69,8 +69,8 @@ function move(){
         case 'down':
             head.y++;
             break;       
-    
-        default:
-            break;
     }
+
+    snake.unshift(head);
+    snake.pop();
 }
