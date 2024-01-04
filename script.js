@@ -59,10 +59,21 @@ function drawFood() {
 
 // Generate food
 function generateFood() {
-  const x = Math.floor(Math.random() * gridSize) + 1;
-  const y = Math.floor(Math.random() * gridSize) + 1;
-  return { x, y };
+  let newFood;
+  do {
+    newFood = {
+      x: Math.floor(Math.random() * gridSize) + 1,
+      y: Math.floor(Math.random() * gridSize) + 1,
+    };
+  } while (isFoodOnSnake(newFood));
+  return newFood;
 }
+
+// Check if the food position is on the snake
+function isFoodOnSnake(foodPosition) {
+  return snake.some((segment) => segment.x === foodPosition.x && segment.y === foodPosition.y);
+}
+
 
 // Moving the snake
 function move() {
@@ -126,18 +137,19 @@ function handleKeyPress(event) {
   ) {
     startGame();
   } else {
+    // Prevent reverse movement
     switch (event.key) {
       case 'ArrowUp':
-        direction = 'up';
+        if (direction !== 'down') direction = 'up';
         break;
       case 'ArrowDown':
-        direction = 'down';
+        if (direction !== 'up') direction = 'down';
         break;
       case 'ArrowLeft':
-        direction = 'left';
+        if (direction !== 'right') direction = 'left';
         break;
       case 'ArrowRight':
-        direction = 'right';
+        if (direction !== 'left') direction = 'right';
         break;
     }
   }
