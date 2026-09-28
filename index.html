@@ -8,10 +8,10 @@
     />
     <meta
       name="description"
-      content="Snake Arcade Hub - Choose between authentic Retro Classic (v1) and modern Next-Gen Cyber (v2) with portal wrap modes, audio synthesizer, and particle effects."
+      content="Snake Arcade - Play the authentic original Classic Snake (v1) with sage triple borders or the Next-Gen Cyber Snake (v2) with portal wrap modes and particle juice."
     />
     <meta name="theme-color" content="#070a12" />
-    <title>Snake Arcade // Classic vs Next-Gen</title>
+    <title>Snake Arcade // Classic (v1) & Next-Gen (v2)</title>
 
     <!-- Google Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -25,7 +25,7 @@
     <script src="script.js" defer></script>
   </head>
   <body>
-    <!-- Ambient Background Lighting -->
+    <!-- Ambient Background Glows for Hub & Next-Gen -->
     <div class="ambient-glow glow-top" aria-hidden="true"></div>
     <div class="ambient-glow glow-bottom" aria-hidden="true"></div>
 
@@ -40,54 +40,60 @@
             <span class="hub-logo-icon">🐍</span>
           </div>
           <h1 class="hub-main-title">SNAKE <span class="gradient-text">ARCADE</span></h1>
-          <p class="hub-subtitle">Choose your slithering dimension</p>
+          <p class="hub-subtitle">Choose your slithering experience</p>
         </header>
 
         <div class="hub-cards-grid">
-          <!-- Option 1: Classic Snake (v1) -->
-          <article class="hub-card classic-card glass-card" id="select-v1-card" tabindex="0" role="button" aria-label="Play Classic Snake v1">
-            <div class="card-badge retro-badge">RETRO 1997</div>
+          <!-- Option 1: Authentic Classic Snake (v1) -->
+          <article class="hub-card classic-card glass-card" id="select-v1-card" tabindex="0" role="button" aria-label="Play Authentic Classic Snake v1">
+            <div class="card-badge retro-badge">ORIGINAL v1</div>
             <div class="card-visual">
-              <div class="retro-screen-thumb">
-                <span class="thumb-pixel-snake">■■■■</span>
-                <span class="thumb-pixel-food">●</span>
+              <div class="v1-thumb-preview">
+                <div class="v1-thumb-b1">
+                  <div class="v1-thumb-b2">
+                    <div class="v1-thumb-b3">
+                      <div class="v1-thumb-snake"></div>
+                      <div class="v1-thumb-food"></div>
+                    </div>
+                  </div>
+                </div>
               </div>
             </div>
             <div class="card-content">
-              <h2 class="card-title">Classic Snake</h2>
-              <p class="card-desc">The authentic 90s monochrome nostalgia. Chunky pixel grid, fixed tick delay, and unforgiving wall collisions.</p>
+              <h2 class="card-title">Classic Snake (v1)</h2>
+              <p class="card-desc">Your authentic original design: sage triple borders, dotted snake blocks, retro VT323 typography, and classic wall collisions.</p>
               <div class="card-tags">
-                <span class="tag">Nokia CRT Green</span>
-                <span class="tag">Wall Death</span>
-                <span class="tag">Pure Retro</span>
+                <span class="tag">Original Triple Borders</span>
+                <span class="tag">#c4cfa3 Screen</span>
+                <span class="tag">Classic Grid</span>
               </div>
             </div>
             <div class="card-footer">
               <div class="card-best-score">
                 <span class="best-label">BEST</span>
-                <span id="hub-v1-best" class="best-num">000</span>
+                <span id="hub-v1-best" class="best-num v1-best-num">000</span>
               </div>
               <button class="launch-btn retro-launch-btn" type="button" tabindex="-1">
-                Play Classic
+                Play Classic (v1)
               </button>
             </div>
           </article>
 
-          <!-- Option 2: Next-Gen Snake (v2) -->
+          <!-- Option 2: Next-Gen Cyber Snake (v2) -->
           <article class="hub-card nextgen-card glass-card" id="select-v2-card" tabindex="0" role="button" aria-label="Play Next-Gen Snake v2">
-            <div class="card-badge modern-badge">NEXT-GEN 2.0</div>
+            <div class="card-badge modern-badge">NEXT-GEN v2</div>
             <div class="card-visual">
-              <div class="modern-screen-thumb">
-                <div class="thumb-glow-snake"></div>
-                <div class="thumb-glow-food"></div>
-                <div class="thumb-particles">
+              <div class="v2-thumb-preview">
+                <div class="v2-thumb-glow-snake"></div>
+                <div class="v2-thumb-glow-food"></div>
+                <div class="v2-thumb-particles">
                   <span></span><span></span><span></span>
                 </div>
               </div>
             </div>
             <div class="card-content">
-              <h2 class="card-title">Next-Gen 2.0</h2>
-              <p class="card-desc">Modern cyber dark-mode edition. Fluid high-DPI canvas, portal wrap-around modes, audio synthesizer, and particle juice.</p>
+              <h2 class="card-title">Next-Gen Snake (v2)</h2>
+              <p class="card-desc">Modern cyber dark-mode edition. Fluid high-DPI canvas, portal wrap-around modes, audio synthesizer, and particle bursts.</p>
               <div class="card-tags">
                 <span class="tag">Wrap & Wall Modes</span>
                 <span class="tag">Speed Scaling</span>
@@ -97,90 +103,70 @@
             <div class="card-footer">
               <div class="card-best-score">
                 <span class="best-label">BEST</span>
-                <span id="hub-v2-best" class="best-num">000</span>
+                <span id="hub-v2-best" class="best-num v2-best-num">000</span>
               </div>
               <button class="launch-btn modern-launch-btn" type="button" tabindex="-1">
-                Play Next-Gen
+                Play Next-Gen (v2)
               </button>
             </div>
           </article>
         </div>
 
         <footer class="hub-footer">
-          <p class="hub-hint">Select a mode to slither • Switch back anytime</p>
+          <p class="hub-hint">Select a mode to play • Switch back anytime with the Menu button</p>
         </footer>
       </section>
 
       <!-- ====================================================================
-           VIEW 2: CLASSIC SNAKE (v1)
+           VIEW 2: AUTHENTIC CLASSIC SNAKE (v1)
+           Exact colors, triple borders, and layout from original repository commits
            ==================================================================== -->
-      <section id="v1-view" class="view-panel hidden" aria-label="Classic Snake Game">
-        <div class="game-wrapper retro-wrapper">
-          <!-- Retro Header -->
-          <header class="game-header retro-header glass-card">
-            <button id="v1-back-btn" class="back-btn retro-back-btn" type="button" aria-label="Back to Menu">
-              <span class="back-arrow">←</span>
-              <span class="back-text">Menu</span>
+      <section id="v1-view" class="view-panel hidden" aria-label="Authentic Classic Snake Game">
+        <div class="v1-game-container">
+          <!-- Back to Menu Bar -->
+          <div class="v1-nav-bar">
+            <button id="v1-back-btn" class="v1-back-btn" type="button" aria-label="Back to Menu">
+              ← Menu
             </button>
-            <div class="retro-brand">
-              <span class="retro-title">CLASSIC 1997</span>
-            </div>
-            <div class="retro-scores">
-              <div class="retro-score-box">
-                <span class="retro-score-label">SCORE</span>
-                <span id="v1-score" class="retro-score-val">000</span>
-              </div>
-              <div class="retro-score-box">
-                <span class="retro-score-label">BEST</span>
-                <span id="v1-high-score" class="retro-score-val">000</span>
-              </div>
-            </div>
-          </header>
+          </div>
 
-          <!-- Retro Canvas Game Board -->
-          <main class="retro-board-outer" id="v1-board-container">
-            <div class="retro-board-frame">
-              <canvas id="v1-canvas" width="480" height="480" aria-label="Classic Snake Board"></canvas>
-              
-              <!-- Retro Overlays -->
-              <div id="v1-start-overlay" class="retro-overlay">
-                <div class="retro-overlay-box">
-                  <h2 class="retro-overlay-title">SNAKE '97</h2>
-                  <p class="retro-overlay-sub">PRESS SPACE OR TAP TO START</p>
-                  <button id="v1-start-btn" class="retro-action-btn" type="button">START</button>
-                </div>
-              </div>
+          <!-- Original Score Header -->
+          <div class="scores v1-scores">
+            <h1 id="v1-score">000</h1>
+            <h1 id="v1-highScore">000</h1>
+          </div>
 
-              <div id="v1-game-over-overlay" class="retro-overlay hidden">
-                <div class="retro-overlay-box">
-                  <h2 class="retro-overlay-title">GAME OVER</h2>
-                  <p class="retro-overlay-sub">FINAL SCORE: <span id="v1-summary-score">0</span></p>
-                  <p id="v1-new-best" class="retro-best-tag hidden">* NEW HIGH SCORE *</p>
-                  <button id="v1-restart-btn" class="retro-action-btn" type="button">PLAY AGAIN</button>
-                </div>
+          <!-- Original Nested Triple Game Borders -->
+          <div class="game-border-1" id="v1-board-wrapper">
+            <div class="game-border-2">
+              <div class="game-border-3">
+                <div id="v1-game-board"></div>
+                <!-- Centered Logo & Instruction Text inside board area -->
+                <img id="v1-logo" src="logo.png" alt="snake-logo" />
+                <h1 id="v1-instruction-text">Press spacebar to start the game</h1>
               </div>
             </div>
-          </main>
+          </div>
 
-          <!-- Retro D-Pad Controls for Mobile -->
-          <nav class="touch-controls retro-touch-controls" aria-label="Classic Touch Controls">
-            <div class="dpad-grid retro-dpad">
-              <button id="v1-dpad-up" class="dpad-btn up retro-btn" aria-label="Up" type="button">▲</button>
-              <button id="v1-dpad-left" class="dpad-btn left retro-btn" aria-label="Left" type="button">◄</button>
-              <button id="v1-dpad-center" class="dpad-btn center retro-btn" aria-label="Action" type="button">●</button>
-              <button id="v1-dpad-right" class="dpad-btn right retro-btn" aria-label="Right" type="button">►</button>
-              <button id="v1-dpad-down" class="dpad-btn down retro-btn" aria-label="Down" type="button">▼</button>
+          <!-- Responsive Touch D-Pad for Mobile Players -->
+          <nav class="touch-controls v1-touch-controls" aria-label="Classic Touch Controls">
+            <div class="dpad-grid v1-dpad">
+              <button id="v1-dpad-up" class="dpad-btn up v1-dpad-btn" aria-label="Up" type="button">▲</button>
+              <button id="v1-dpad-left" class="dpad-btn left v1-dpad-btn" aria-label="Left" type="button">◄</button>
+              <button id="v1-dpad-center" class="dpad-btn center v1-dpad-btn" aria-label="Action" type="button">●</button>
+              <button id="v1-dpad-right" class="dpad-btn right v1-dpad-btn" aria-label="Right" type="button">►</button>
+              <button id="v1-dpad-down" class="dpad-btn down v1-dpad-btn" aria-label="Down" type="button">▼</button>
             </div>
           </nav>
 
-          <footer class="game-footer retro-footer">
-            <p><kbd>W/A/S/D</kbd> or <kbd>Arrows</kbd> to steer • <kbd>Space</kbd> Start • Swipe on mobile</p>
+          <footer class="v1-footer">
+            <p>Arrow Keys or <kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> Move • <kbd>Space</kbd> Start • Swipe on mobile</p>
           </footer>
         </div>
       </section>
 
       <!-- ====================================================================
-           VIEW 3: NEXT-GEN SNAKE (v2)
+           VIEW 3: NEXT-GEN CYBER SNAKE (v2)
            ==================================================================== -->
       <section id="v2-view" class="view-panel hidden" aria-label="Next-Gen Snake Game">
         <div class="game-wrapper modern-wrapper">
@@ -368,7 +354,7 @@
       </section>
     </div>
 
-    <!-- Help / Instructions Modal (Shared) -->
+    <!-- Help Modal Dialog -->
     <dialog id="help-modal" class="modal-dialog glass-card">
       <div class="modal-content">
         <div class="modal-header">
@@ -381,19 +367,15 @@
             <ul>
               <li><strong>Desktop:</strong> Arrow Keys or <kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> to steer.</li>
               <li><strong>Mobile:</strong> Swipe anywhere on the board or tap the on-screen D-Pad.</li>
-              <li><strong>Pause / Sound:</strong> Press <kbd>P</kbd> to pause, <kbd>M</kbd> to toggle audio.</li>
+              <li><strong>Pause / Sound:</strong> Press <kbd>P</kbd> to pause, <kbd>M</kbd> to toggle audio in Next-Gen.</li>
             </ul>
           </div>
           <div class="modal-section">
-            <h3>🌐 Boundary Modes</h3>
+            <h3>🌐 Game Editions</h3>
             <ul>
-              <li><strong>Classic Mode:</strong> Hitting the border wall ends the game immediately.</li>
-              <li><strong>Wrap-around Mode:</strong> Slither through walls and re-emerge seamlessly on the opposite side.</li>
+              <li><strong>Classic Snake (v1):</strong> Authentic retro sage borders (#595f43, #8b966c), dotted snake blocks (#414141), and solid wall collisions.</li>
+              <li><strong>Next-Gen Snake (v2):</strong> Modern cyber dark-mode with wrap-around portals, audio synthesizer, and particle bursts.</li>
             </ul>
-          </div>
-          <div class="modal-section">
-            <h3>⚡ Dynamic Levels & Juice</h3>
-            <p>Every 5 apples eaten speeds up the snake and increases your level. Grab golden bonus apples for +30 extra points!</p>
           </div>
         </div>
         <div class="modal-footer">

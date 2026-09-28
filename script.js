@@ -1,20 +1,20 @@
 /**
  * ============================================================================
- * SNAKE ARCADE // SYSTEM ENGINE & ROUTER
- * Features:
- *   1. Hub Manager & Screen Routing (Hub <-> Classic v1 <-> Next-Gen v2)
- *   2. Classic Retro Snake Engine (1997 Nokia LCD Phosphor Edition)
- *   3. Next-Gen Cyber Snake Engine (2026 High-DPI Canvas + Audio Synth + Juice)
- *   4. Double-Buffered Input Queues & Touch / Swipe Engines
+ * SNAKE ARCADE // MULTI-EDITION ROUTER & ENGINES
+ *
+ * 1. HubManager: Central Landing Menu & View Router (Hub <-> v1 <-> v2)
+ * 2. ClassicSnakeGame (v1): Exact recreation of original commit 9b3f8ca
+ *    - DOM-based grid elements: div.snake & div.food
+ *    - Exact speed stepping, 1-20 grid boundaries, logo.png & instruction text
+ *    - Fixed 180° suicide bug & added localStorage high score persistence
+ * 3. NextGenSnakeGame (v2): Modern cyber-dark mode canvas engine
  * ============================================================================
  */
 
 'use strict';
 
 (() => {
-  // --------------------------------------------------------------------------
-  // Global Constants & Directions
-  // --------------------------------------------------------------------------
+  // Global Directions (1-based grid for v1, delta offsets for both)
   const DIRECTIONS = {
     UP: { x: 0, y: -1, name: 'up' },
     DOWN: { x: 0, y: 1, name: 'down' },
@@ -29,34 +29,17 @@
     V2_MODE: 'snake_v2_boundary_mode',
   };
 
-  // Polyfill roundRect for older WebViews / mobile browsers
-  if (typeof CanvasRenderingContext2D !== 'undefined' && !CanvasRenderingContext2D.prototype.roundRect) {
-    CanvasRenderingContext2D.prototype.roundRect = function(x, y, w, h, radii = 0) {
-      const r = typeof radii === 'number' ? radii : (Array.isArray(radii) ? radii[0] : 0);
-      this.beginPath();
-      this.moveTo(x + r, y);
-      this.arcTo(x + w, y, x + w, y + h, r);
-      this.arcTo(x + w, y + h, x, y + h, r);
-      this.arcTo(x, y + h, x, y, r);
-      this.arcTo(x, y, x + w, y, r);
-      this.closePath();
-      return this;
-    };
-  }
-
   // Safe Haptic Feedback Helper
   function triggerHaptic(pattern = 10) {
     if ('vibrate' in navigator && typeof navigator.vibrate === 'function') {
       try {
         navigator.vibrate(pattern);
-      } catch (e) {
-        // Non-blocking
-      }
+      } catch (e) {}
     }
   }
 
   // --------------------------------------------------------------------------
-  // Web Audio Synthesizer (Zero-asset native synth)
+  // Web Audio Synthesizer (Native synth for Next-Gen v2)
   // --------------------------------------------------------------------------
   class WebAudioSynth {
     constructor() {
@@ -72,9 +55,7 @@
     init() {
       if (!this.ctx) {
         const AudioContextClass = window.AudioContext || window.webkitAudioContext;
-        if (AudioContextClass) {
-          this.ctx = new AudioContextClass();
-        }
+        if (AudioContextClass) this.ctx = new AudioContextClass();
       }
       if (this.ctx && this.ctx.state === 'suspended') {
         this.ctx.resume();
@@ -100,9 +81,9 @@
 
       osc.type = isBonus ? 'triangle' : 'sine';
       if (isBonus) {
-        osc.frequency.setValueAtTime(587.33, now); // D5
-        osc.frequency.exponentialRampToValueAtTime(880, now + 0.08); // A5
-        osc.frequency.exponentialRampToValueAtTime(1174.66, now + 0.18); // D6
+        osc.frequency.setValueAtTime(587.33, now);
+        osc.frequency.exponentialRampToValueAtTime(880, now + 0.08);
+        osc.frequency.exponentialRampToValueAtTime(1174.66, now + 0.18);
         gain.gain.setValueAtTime(0.18, now);
         gain.gain.exponentialRampToValueAtTime(0.001, now + 0.25);
         osc.connect(gain);
@@ -165,7 +146,7 @@
   }
 
   // --------------------------------------------------------------------------
-  // Particles & Floating Scores (for Next-Gen v2)
+  // Particles & Floating Text (for Next-Gen v2)
   // --------------------------------------------------------------------------
   class Particle {
     constructor(x, y, color) {
@@ -233,52 +214,43 @@
   }
 
   // --------------------------------------------------------------------------
-  // GAME ENGINE 1: RETRO CLASSIC SNAKE (v1)
+  // GAME ENGINE 1: AUTHENTIC CLASSIC SNAKE (v1)
+  // Exact replication of author's original commit 9b3f8ca
   // --------------------------------------------------------------------------
   class ClassicSnakeGame {
     constructor() {
+      this.board = document.getElementById('v1-game-board');
+      this.instructionText = document.getElementById('v1-instruction-text');
+      this.logo = document.getElementById('v1-logo');
+      this.scoreText = document.getElementById('v1-score');
+      this.highScoreText = document.getElementById('v1-highScore');
+      this.boardWrapper = document.getElementById('v1-board-wrapper');
+
       this.gridSize = 20;
-      this.tickSpeed = 160; // Classic nostalgic tick rate
-      this.canvas = document.getElementById('v1-canvas');
-      this.ctx = this.canvas.getContext('2d');
-      this.container = document.getElementById('v1-board-container');
-
-      this.scoreDisplay = document.getElementById('v1-score');
-      this.highScoreDisplay = document.getElementById('v1-high-score');
-      this.summaryScore = document.getElementById('v1-summary-score');
-      this.newBestTag = document.getElementById('v1-new-best');
-
-      this.startOverlay = document.getElementById('v1-start-overlay');
-      this.gameOverOverlay = document.getElementById('v1-game-over-overlay');
-      this.startBtn = document.getElementById('v1-start-btn');
-      this.restartBtn = document.getElementById('v1-restart-btn');
-
-      this.score = 0;
+      this.snake = [{ x: 10, y: 10 }];
+      this.food = this.generateFood();
       this.highScore = 0;
-      this.snake = [];
-      this.direction = DIRECTIONS.RIGHT;
-      this.inputQueue = [];
-      this.food = null;
-
-      this.isPlaying = false;
-      this.isGameOver = false;
+      this.direction = 'right';
+      this.inputQueue = []; // Bug fix: queue to prevent 180° suicide
       this.gameInterval = null;
-      this.tileSize = 24;
+      this.gameSpeedDelay = 200;
+      this.gameStarted = false;
 
       this.loadHighScore();
-      this.setupCanvas();
-      this.initIdleState();
       this.bindInputs();
+      this.draw();
     }
 
     loadHighScore() {
       try {
         const saved = localStorage.getItem(STORAGE_KEYS.V1_HIGH);
-        this.highScore = saved ? parseInt(saved, 10) || 0 : 0;
+        if (saved !== null) {
+          this.highScore = parseInt(saved, 10) || 0;
+          this.highScoreText.textContent = this.highScore.toString().padStart(3, '0');
+        }
       } catch (e) {
         this.highScore = 0;
       }
-      this.highScoreDisplay.textContent = this.highScore.toString().padStart(3, '0');
     }
 
     saveHighScore() {
@@ -287,252 +259,235 @@
       } catch (e) {}
     }
 
-    setupCanvas() {
-      const rect = this.canvas.getBoundingClientRect();
-      const dpr = window.devicePixelRatio || 1;
-      const size = rect.width > 0 ? rect.width : 400;
-      this.canvas.width = Math.round(size * dpr);
-      this.canvas.height = Math.round(size * dpr);
-      this.tileSize = this.canvas.width / this.gridSize;
+    // Exact draw from commit 9b3f8ca
+    draw() {
+      this.board.innerHTML = '';
+      this.drawSnake();
+      this.drawFood();
+      this.updateScore();
     }
 
-    initIdleState() {
-      this.snake = [
-        { x: 10, y: 10 },
-        { x: 9, y: 10 },
-        { x: 8, y: 10 },
-      ];
-      this.food = { x: 14, y: 10 };
-      this.score = 0;
-      this.direction = DIRECTIONS.RIGHT;
-      this.inputQueue = [];
-      this.isPlaying = false;
-      this.isGameOver = false;
-      this.updateHud();
-      this.draw();
+    drawSnake() {
+      this.snake.forEach((segment) => {
+        const snakeElement = this.createGameElement('div', 'snake');
+        this.setPosition(snakeElement, segment);
+        this.board.appendChild(snakeElement);
+      });
     }
 
-    start() {
-      this.stop();
-      this.score = 0;
-      this.snake = [
-        { x: 10, y: 10 },
-        { x: 9, y: 10 },
-        { x: 8, y: 10 },
-      ];
-      this.direction = DIRECTIONS.RIGHT;
-      this.inputQueue = [];
-      this.food = this.generateFood();
-      this.isPlaying = true;
-      this.isGameOver = false;
-
-      this.startOverlay.classList.add('hidden');
-      this.gameOverOverlay.classList.add('hidden');
-      this.updateHud();
-
-      this.gameInterval = setInterval(() => {
-        this.tick();
-      }, this.tickSpeed);
-      this.draw();
+    createGameElement(tag, className) {
+      const element = document.createElement(tag);
+      element.className = className;
+      return element;
     }
 
-    stop() {
-      if (this.gameInterval) {
-        clearInterval(this.gameInterval);
-        this.gameInterval = null;
-      }
-      this.isPlaying = false;
+    setPosition(element, position) {
+      element.style.gridColumn = position.x;
+      element.style.gridRow = position.y;
     }
 
-    tick() {
-      if (!this.isPlaying) return;
-
-      // Handle queued direction
-      if (this.inputQueue.length > 0) {
-        this.direction = this.inputQueue.shift();
+    drawFood() {
+      if (this.gameStarted) {
+        const foodElement = this.createGameElement('div', 'food');
+        this.setPosition(foodElement, this.food);
+        this.board.appendChild(foodElement);
       }
-
-      const head = { ...this.snake[0] };
-      head.x += this.direction.x;
-      head.y += this.direction.y;
-
-      // Classic Wall Collision -> Game Over
-      if (head.x < 0 || head.x >= this.gridSize || head.y < 0 || head.y >= this.gridSize) {
-        this.onGameOver();
-        return;
-      }
-
-      // Self Collision -> Game Over
-      if (this.snake.some(segment => segment.x === head.x && segment.y === head.y)) {
-        this.onGameOver();
-        return;
-      }
-
-      this.snake.unshift(head);
-
-      // Check food
-      if (head.x === this.food.x && head.y === this.food.y) {
-        this.score += 10;
-        triggerHaptic(15);
-        if (this.score > this.highScore) {
-          this.highScore = this.score;
-          this.saveHighScore();
-        }
-        this.food = this.generateFood();
-        this.updateHud();
-      } else {
-        this.snake.pop();
-      }
-
-      this.draw();
-    }
-
-    onGameOver() {
-      this.stop();
-      this.isGameOver = true;
-      triggerHaptic([30, 20, 50]);
-
-      this.summaryScore.textContent = this.score.toString();
-      if (this.score >= this.highScore && this.score > 0) {
-        this.newBestTag.classList.remove('hidden');
-      } else {
-        this.newBestTag.classList.add('hidden');
-      }
-
-      this.gameOverOverlay.classList.remove('hidden');
-      this.draw();
     }
 
     generateFood() {
       const occupied = new Set(this.snake.map(s => `${s.x},${s.y}`));
       const freeSpots = [];
-      for (let x = 0; x < this.gridSize; x++) {
-        for (let y = 0; y < this.gridSize; y++) {
+      for (let x = 1; x <= this.gridSize; x++) {
+        for (let y = 1; y <= this.gridSize; y++) {
           if (!occupied.has(`${x},${y}`)) freeSpots.push({ x, y });
         }
       }
-      if (freeSpots.length === 0) return { x: 0, y: 0 };
+      if (freeSpots.length === 0) return { x: 1, y: 1 };
       return freeSpots[Math.floor(Math.random() * freeSpots.length)];
     }
 
-    queueDirection(dir) {
-      if (!this.isPlaying) {
-        this.start();
+    move() {
+      // Process queued direction (fixes 180° suicide)
+      if (this.inputQueue.length > 0) {
+        this.direction = this.inputQueue.shift();
+      }
+
+      const head = { ...this.snake[0] };
+      switch (this.direction) {
+        case 'up': head.y--; break;
+        case 'down': head.y++; break;
+        case 'left': head.x--; break;
+        case 'right': head.x++; break;
+      }
+
+      this.snake.unshift(head);
+
+      if (head.x === this.food.x && head.y === this.food.y) {
+        this.food = this.generateFood();
+        this.increaseSpeed();
+        clearInterval(this.gameInterval);
+        this.gameInterval = setInterval(() => {
+          this.move();
+          this.checkCollision();
+          this.draw();
+        }, this.gameSpeedDelay);
+        triggerHaptic(15);
+      } else {
+        this.snake.pop();
+      }
+    }
+
+    increaseSpeed() {
+      if (this.gameSpeedDelay > 150) {
+        this.gameSpeedDelay -= 5;
+      } else if (this.gameSpeedDelay > 100) {
+        this.gameSpeedDelay -= 3;
+      } else if (this.gameSpeedDelay > 50) {
+        this.gameSpeedDelay -= 2;
+      } else if (this.gameSpeedDelay > 25) {
+        this.gameSpeedDelay -= 1;
+      }
+    }
+
+    checkCollision() {
+      const head = this.snake[0];
+
+      if (head.x < 1 || head.x > this.gridSize || head.y < 1 || head.y > this.gridSize) {
+        this.resetGame();
         return;
       }
+
+      for (let i = 1; i < this.snake.length; i++) {
+        if (head.x === this.snake[i].x && head.y === this.snake[i].y) {
+          this.resetGame();
+          return;
+        }
+      }
+    }
+
+    startGame() {
+      this.gameStarted = true;
+      this.instructionText.style.display = 'none';
+      this.logo.style.display = 'none';
+      clearInterval(this.gameInterval);
+      this.gameInterval = setInterval(() => {
+        this.move();
+        this.checkCollision();
+        this.draw();
+      }, this.gameSpeedDelay);
+    }
+
+    resetGame() {
+      this.updateHighScore();
+      this.stopGame();
+      this.snake = [{ x: 10, y: 10 }];
+      this.food = this.generateFood();
+      this.direction = 'right';
+      this.inputQueue = [];
+      this.gameSpeedDelay = 200;
+      this.updateScore();
+      triggerHaptic([30, 20, 50]);
+    }
+
+    stopGame() {
+      clearInterval(this.gameInterval);
+      this.gameStarted = false;
+      this.instructionText.style.display = 'block';
+      this.logo.style.display = 'block';
+    }
+
+    updateScore() {
+      const currentScore = this.snake.length - 1;
+      this.scoreText.textContent = currentScore.toString().padStart(3, '0');
+    }
+
+    updateHighScore() {
+      const currentScore = this.snake.length - 1;
+      if (currentScore > this.highScore) {
+        this.highScore = currentScore;
+        this.highScoreText.textContent = this.highScore.toString().padStart(3, '0');
+        this.saveHighScore();
+      }
+      this.highScoreText.style.display = 'block';
+    }
+
+    queueDirection(newDir) {
+      if (!this.gameStarted) {
+        this.startGame();
+        return;
+      }
+
       const lastDir = this.inputQueue.length > 0
         ? this.inputQueue[this.inputQueue.length - 1]
         : this.direction;
 
       // Prevent 180° immediate reverse
-      if (dir.x === -lastDir.x && dir.y === -lastDir.y) return;
-      if (dir.x === lastDir.x && dir.y === lastDir.y) return;
+      if (newDir === 'up' && lastDir === 'down') return;
+      if (newDir === 'down' && lastDir === 'up') return;
+      if (newDir === 'left' && lastDir === 'right') return;
+      if (newDir === 'right' && lastDir === 'left') return;
+      if (newDir === lastDir) return;
 
       if (this.inputQueue.length < 2) {
-        this.inputQueue.push(dir);
+        this.inputQueue.push(newDir);
         triggerHaptic(8);
       }
     }
 
-    draw() {
-      const ts = this.tileSize;
-      const ctx = this.ctx;
-      const w = this.canvas.width;
-      const h = this.canvas.height;
-
-      // Retro LCD screen background
-      ctx.fillStyle = '#9BBC0F';
-      ctx.fillRect(0, 0, w, h);
-
-      // Subtle CRT pixel grid pattern
-      ctx.strokeStyle = 'rgba(15, 56, 15, 0.08)';
-      ctx.lineWidth = 1;
-      ctx.beginPath();
-      for (let x = ts; x < w; x += ts) {
-        ctx.moveTo(x, 0); ctx.lineTo(x, h);
-      }
-      for (let y = ts; y < h; y += ts) {
-        ctx.moveTo(0, y); ctx.lineTo(w, y);
-      }
-      ctx.stroke();
-
-      // Draw Classic Pixel Food
-      if (this.food) {
-        ctx.fillStyle = '#0F380F';
-        ctx.fillRect(this.food.x * ts + 2, this.food.y * ts + 2, ts - 4, ts - 4);
-      }
-
-      // Draw Classic Pixel Snake
-      this.snake.forEach((seg, i) => {
-        ctx.fillStyle = '#0F380F';
-        ctx.fillRect(seg.x * ts + 1, seg.y * ts + 1, ts - 2, ts - 2);
-
-        // Dark inner bevel for pixel look
-        if (i === 0) {
-          ctx.fillStyle = '#9BBC0F';
-          ctx.fillRect(seg.x * ts + 4, seg.y * ts + 4, ts - 8, ts - 8);
-          ctx.fillStyle = '#0F380F';
-          ctx.fillRect(seg.x * ts + 6, seg.y * ts + 6, ts - 12, ts - 12);
-        }
-      });
-    }
-
-    updateHud() {
-      this.scoreDisplay.textContent = this.score.toString().padStart(3, '0');
-      this.highScoreDisplay.textContent = this.highScore.toString().padStart(3, '0');
-    }
-
     bindInputs() {
-      this.startBtn.addEventListener('click', () => this.start());
-      this.restartBtn.addEventListener('click', () => this.start());
-
-      // Retro D-Pad
-      const bind = (id, dir) => {
-        const el = document.getElementById(id);
-        if (!el) return;
-        el.addEventListener('pointerdown', (e) => {
-          e.preventDefault();
-          this.queueDirection(dir);
-        });
+      // Mobile Virtual D-Pad
+      const bindBtn = (id, dir) => {
+        const btn = document.getElementById(id);
+        if (btn) {
+          btn.addEventListener('pointerdown', (e) => {
+            e.preventDefault();
+            this.queueDirection(dir);
+          });
+        }
       };
-      bind('v1-dpad-up', DIRECTIONS.UP);
-      bind('v1-dpad-down', DIRECTIONS.DOWN);
-      bind('v1-dpad-left', DIRECTIONS.LEFT);
-      bind('v1-dpad-right', DIRECTIONS.RIGHT);
+      bindBtn('v1-dpad-up', 'up');
+      bindBtn('v1-dpad-down', 'down');
+      bindBtn('v1-dpad-left', 'left');
+      bindBtn('v1-dpad-right', 'right');
 
-      document.getElementById('v1-dpad-center').addEventListener('pointerdown', (e) => {
-        e.preventDefault();
-        if (!this.isPlaying) this.start();
-      });
+      const centerBtn = document.getElementById('v1-dpad-center');
+      if (centerBtn) {
+        centerBtn.addEventListener('pointerdown', (e) => {
+          e.preventDefault();
+          if (!this.gameStarted) this.startGame();
+        });
+      }
 
-      // Swipe Gestures
-      let sx = 0, sy = 0;
-      this.container.addEventListener('touchstart', (e) => {
+      // Touch Swipes
+      let touchStartX = 0;
+      let touchStartY = 0;
+
+      this.boardWrapper.addEventListener('touchstart', (e) => {
         if (e.touches.length > 0) {
-          sx = e.touches[0].clientX;
-          sy = e.touches[0].clientY;
+          touchStartX = e.touches[0].clientX;
+          touchStartY = e.touches[0].clientY;
         }
       }, { passive: true });
 
-      this.container.addEventListener('touchmove', (e) => {
+      this.boardWrapper.addEventListener('touchmove', (e) => {
         if (e.cancelable) e.preventDefault();
       }, { passive: false });
 
-      this.container.addEventListener('touchend', (e) => {
+      this.boardWrapper.addEventListener('touchend', (e) => {
         if (e.changedTouches.length === 0) return;
-        const dx = e.changedTouches[0].clientX - sx;
-        const dy = e.changedTouches[0].clientY - sy;
-        const adx = Math.abs(dx);
-        const ady = Math.abs(dy);
+        const diffX = e.changedTouches[0].clientX - touchStartX;
+        const diffY = e.changedTouches[0].clientY - touchStartY;
+        const absX = Math.abs(diffX);
+        const absY = Math.abs(diffY);
 
-        if (Math.max(adx, ady) > 22) {
-          if (adx > ady) {
-            this.queueDirection(dx > 0 ? DIRECTIONS.RIGHT : DIRECTIONS.LEFT);
+        if (Math.max(absX, absY) > 20) {
+          if (absX > absY) {
+            this.queueDirection(diffX > 0 ? 'right' : 'left');
           } else {
-            this.queueDirection(dy > 0 ? DIRECTIONS.DOWN : DIRECTIONS.UP);
+            this.queueDirection(diffY > 0 ? 'down' : 'up');
           }
         } else {
-          if (!this.isPlaying) this.start();
+          if (!this.gameStarted) this.startGame();
         }
       }, { passive: true });
     }
@@ -585,8 +540,8 @@
       this.soundIconOff = document.getElementById('v2-sound-icon-off');
 
       this.sound = new WebAudioSynth();
-      this.state = 'IDLE'; // IDLE | PLAYING | PAUSED | GAME_OVER
-      this.boundaryMode = 'classic'; // classic | wrap
+      this.state = 'IDLE';
+      this.boundaryMode = 'classic';
 
       this.score = 0;
       this.highScore = 0;
@@ -998,7 +953,7 @@
       ctx.fillStyle = '#080C14';
       ctx.fillRect(0, 0, width, height);
 
-      // Grid
+      // Grid lines
       ctx.lineWidth = 1;
       ctx.strokeStyle = 'rgba(255, 255, 255, 0.025)';
       ctx.beginPath();
@@ -1167,7 +1122,6 @@
       this.modeToggleBtn.addEventListener('click', () => this.toggleBoundaryMode());
       this.soundToggleBtn.addEventListener('click', () => this.toggleSound());
 
-      // Modern D-Pad
       const bind = (id, dir) => {
         const el = document.getElementById(id);
         if (!el) return;
@@ -1269,25 +1223,31 @@
     navigateTo(target) {
       if (this.activeView === target) return;
 
-      // Cleanup current view
+      // Clean up previous view
       if (this.activeView === 'v1') {
-        this.classicGame.stop();
+        this.classicGame.stopGame();
       } else if (this.activeView === 'v2') {
         this.nextGenGame.stop();
       }
 
       this.activeView = target;
 
-      // Update visibility classes
+      // Toggle views
       this.hubView.classList.toggle('hidden', target !== 'hub');
       this.v1View.classList.toggle('hidden', target !== 'v1');
       this.v2View.classList.toggle('hidden', target !== 'v2');
 
+      // Apply body background switch for v1 vs hub/v2
+      if (target === 'v1') {
+        document.body.style.backgroundColor = 'var(--v1-body-bg)';
+      } else {
+        document.body.style.backgroundColor = 'var(--bg-dark)';
+      }
+
       if (target === 'hub') {
         this.updateHubScores();
       } else if (target === 'v1') {
-        this.classicGame.setupCanvas();
-        this.classicGame.initIdleState();
+        this.classicGame.draw();
       } else if (target === 'v2') {
         this.nextGenGame.setupCanvas();
         this.nextGenGame.initIdleBoard();
@@ -1295,11 +1255,11 @@
     }
 
     bindRouter() {
-      // Hub Card Selections
+      // Card clicks
       this.v1Card.addEventListener('click', () => this.navigateTo('v1'));
       this.v2Card.addEventListener('click', () => this.navigateTo('v2'));
 
-      // Keyboard selection in hub
+      // Keyboard navigation in hub
       this.v1Card.addEventListener('keydown', (e) => {
         if (e.key === 'Enter' || e.key === ' ') {
           e.preventDefault();
@@ -1313,7 +1273,7 @@
         }
       });
 
-      // Back Buttons inside games
+      // Back Buttons
       this.v1BackBtn.addEventListener('click', () => this.navigateTo('hub'));
       this.v2BackBtn.addEventListener('click', () => this.navigateTo('hub'));
 
@@ -1340,13 +1300,12 @@
         if (e.target === this.helpModal) closeModal();
       });
 
-      // Window Resize Listener for Canvases
+      // Window Resize Listener
       window.addEventListener('resize', () => {
-        if (this.activeView === 'v1') this.classicGame.setupCanvas();
         if (this.activeView === 'v2') this.nextGenGame.setupCanvas();
       });
 
-      // Global Keyboard Dispatcher
+      // Global Keyboard Router
       window.addEventListener('keydown', (e) => {
         const key = e.code || e.key;
 
@@ -1355,30 +1314,27 @@
           e.preventDefault();
         }
 
-        // Return to Hub with Escape if in a game and paused/idle/over
-        if ((key === 'Escape' || key === 'KeyB') && this.activeView !== 'hub') {
-          if (this.activeView === 'v1') {
-            this.navigateTo('hub');
-            return;
-          }
-          if (this.activeView === 'v2' && this.nextGenGame.state !== 'PLAYING') {
-            this.navigateTo('hub');
-            return;
-          }
+        // Return to Hub with Escape
+        if (key === 'Escape' && this.activeView !== 'hub') {
+          this.navigateTo('hub');
+          return;
         }
 
-        // Route inputs to active game engine
+        // Route to Classic Snake (v1)
         if (this.activeView === 'v1') {
-          switch (key) {
-            case 'ArrowUp': case 'KeyW': this.classicGame.queueDirection(DIRECTIONS.UP); break;
-            case 'ArrowDown': case 'KeyS': this.classicGame.queueDirection(DIRECTIONS.DOWN); break;
-            case 'ArrowLeft': case 'KeyA': this.classicGame.queueDirection(DIRECTIONS.LEFT); break;
-            case 'ArrowRight': case 'KeyD': this.classicGame.queueDirection(DIRECTIONS.RIGHT); break;
-            case 'Space': case 'Enter':
-              if (!this.classicGame.isPlaying) this.classicGame.start();
-              break;
+          if (!this.classicGame.gameStarted && (key === 'Space' || e.key === ' ')) {
+            this.classicGame.startGame();
+          } else {
+            switch (key) {
+              case 'ArrowUp': case 'KeyW': this.classicGame.queueDirection('up'); break;
+              case 'ArrowDown': case 'KeyS': this.classicGame.queueDirection('down'); break;
+              case 'ArrowLeft': case 'KeyA': this.classicGame.queueDirection('left'); break;
+              case 'ArrowRight': case 'KeyD': this.classicGame.queueDirection('right'); break;
+            }
           }
-        } else if (this.activeView === 'v2') {
+        }
+        // Route to Next-Gen Snake (v2)
+        else if (this.activeView === 'v2') {
           switch (key) {
             case 'ArrowUp': case 'KeyW': this.nextGenGame.queueDirection(DIRECTIONS.UP); break;
             case 'ArrowDown': case 'KeyS': this.nextGenGame.queueDirection(DIRECTIONS.DOWN); break;
