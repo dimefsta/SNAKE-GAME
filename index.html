@@ -2,32 +2,248 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover"
+    />
+    <meta
+      name="description"
+      content="Next-Gen Snake 2.0 - A modern, minimalist Snake game featuring dynamic speeds, wrap-around portal modes, particle effects, and responsive touch controls."
+    />
+    <meta name="theme-color" content="#080c14" />
+    <title>Snake 2.0 // Next-Gen Arcade</title>
+
+    <!-- Google Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
-      href="https://fonts.googleapis.com/css2?family=VT323&display=swap"
+      href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@500;700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap"
       rel="stylesheet"
     />
-    <title>Snake Game</title>
-    <link rel="stylesheet" href="styles.css" />
+
+    <link rel="stylesheet" href="style.css" />
     <script src="script.js" defer></script>
   </head>
   <body>
-    <div>
-      <div class="scores">
-        <h1 id="score">000</h1>
-        <h1 id="highScore">000</h1>
-      </div>
-      <div class="game-border-1">
-        <div class="game-border-2">
-          <div class="game-border-3">
-            <div id="game-board"></div>
+    <!-- Ambient Background Glows -->
+    <div class="ambient-glow glow-top" aria-hidden="true"></div>
+    <div class="ambient-glow glow-bottom" aria-hidden="true"></div>
+
+    <div class="game-wrapper">
+      <!-- Header Bar -->
+      <header class="game-header glass-card">
+        <div class="brand">
+          <div class="brand-logo-wrap">
+            <span class="snake-brand-icon">⚡</span>
+          </div>
+          <div class="brand-text">
+            <h1 class="game-title">SNAKE</h1>
+            <span class="version-badge">v2.0</span>
           </div>
         </div>
-      </div>
+
+        <!-- Mode & Setting Quick Bar -->
+        <div class="header-actions">
+          <!-- Boundary Mode Toggle -->
+          <button
+            id="mode-toggle-btn"
+            class="action-btn"
+            type="button"
+            title="Toggle Boundary Mode (Classic / Wrap)"
+            aria-label="Toggle Boundary Mode"
+          >
+            <span id="mode-icon" class="btn-icon">🛡️</span>
+            <span id="mode-name" class="btn-label">Classic</span>
+          </button>
+
+          <!-- Audio Toggle -->
+          <button
+            id="sound-toggle-btn"
+            class="action-btn icon-only"
+            type="button"
+            title="Toggle Sound Effects (M)"
+            aria-label="Toggle Sound"
+          >
+            <svg id="sound-icon-on" class="svg-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
+              <path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"></path>
+            </svg>
+            <svg id="sound-icon-off" class="svg-icon hidden" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
+              <line x1="23" y1="9" x2="17" y2="15"></line>
+              <line x1="17" y1="9" x2="23" y2="15"></line>
+            </svg>
+          </button>
+
+          <!-- Instructions / Help Modal -->
+          <button
+            id="help-btn"
+            class="action-btn icon-only"
+            type="button"
+            title="Game Info & Controls"
+            aria-label="Show Instructions"
+          >
+            <svg class="svg-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="12" cy="12" r="10"></circle>
+              <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path>
+              <line x1="12" y1="17" x2="12.01" y2="17"></line>
+            </svg>
+          </button>
+        </div>
+      </header>
+
+      <!-- Stat HUD -->
+      <section class="stats-hud" aria-label="Game Statistics">
+        <div class="stat-card glass-card">
+          <span class="stat-label">SCORE</span>
+          <span id="score-display" class="stat-value">000</span>
+        </div>
+
+        <div class="stat-card glass-card">
+          <span class="stat-label">BEST</span>
+          <span id="high-score-display" class="stat-value">000</span>
+        </div>
+
+        <div class="stat-card glass-card">
+          <span class="stat-label">LEVEL</span>
+          <span id="level-display" class="stat-value">01</span>
+        </div>
+      </section>
+
+      <!-- Game Board Container -->
+      <main class="board-container glass-card" id="board-container">
+        <!-- Canvas Element -->
+        <canvas id="game-canvas" width="600" height="600" aria-label="Snake Game Board" role="img"></canvas>
+
+        <!-- Floating Overlays -->
+
+        <!-- Start / Idle Overlay -->
+        <div id="start-overlay" class="overlay">
+          <div class="overlay-card glass-card">
+            <div class="overlay-icon pulse-animation">🐍</div>
+            <h2 class="overlay-title">Ready to Slither?</h2>
+            <p class="overlay-subtitle">Press <kbd class="key-badge">Space</kbd> or Tap to Start</p>
+            <div class="overlay-tags">
+              <span class="tag-pill" id="overlay-mode-tag">🛡️ Classic Mode</span>
+              <span class="tag-pill">⚡ Speed Scaling</span>
+            </div>
+            <button id="start-btn" class="primary-btn glow-btn" type="button">Start Game</button>
+          </div>
+        </div>
+
+        <!-- Paused Overlay -->
+        <div id="pause-overlay" class="overlay hidden">
+          <div class="overlay-card glass-card">
+            <div class="overlay-icon">⏸️</div>
+            <h2 class="overlay-title">Game Paused</h2>
+            <p class="overlay-subtitle">Take a breath</p>
+            <div class="overlay-actions">
+              <button id="resume-btn" class="primary-btn glow-btn" type="button">Resume (P)</button>
+              <button id="restart-from-pause-btn" class="secondary-btn" type="button">Restart</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Game Over Overlay -->
+        <div id="game-over-overlay" class="overlay hidden">
+          <div class="overlay-card glass-card">
+            <div id="game-over-badge" class="game-over-tag">GAME OVER</div>
+            <h2 id="game-over-title" class="overlay-title">Crash!</h2>
+            <div class="summary-stats">
+              <div class="summary-item">
+                <span class="summary-label">Final Score</span>
+                <span id="summary-score" class="summary-val">0</span>
+              </div>
+              <div class="summary-item">
+                <span class="summary-label">Apples Eaten</span>
+                <span id="summary-apples" class="summary-val">0</span>
+              </div>
+              <div class="summary-item">
+                <span class="summary-label">Max Level</span>
+                <span id="summary-level" class="summary-val">1</span>
+              </div>
+            </div>
+            <p id="new-high-score-banner" class="high-score-banner hidden">🏆 NEW BEST RECORD!</p>
+            <button id="play-again-btn" class="primary-btn glow-btn" type="button">Play Again (Space)</button>
+          </div>
+        </div>
+      </main>
+
+      <!-- Mobile On-Screen D-Pad Controls -->
+      <nav class="touch-controls" id="touch-controls" aria-label="Touch Navigation Controls">
+        <div class="dpad-grid">
+          <button id="btn-up" class="dpad-btn up" aria-label="Move Up" type="button">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+              <polyline points="18 15 12 9 6 15"></polyline>
+            </svg>
+          </button>
+          <button id="btn-left" class="dpad-btn left" aria-label="Move Left" type="button">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+              <polyline points="15 18 9 12 15 6"></polyline>
+            </svg>
+          </button>
+          <button id="btn-center" class="dpad-btn center" aria-label="Pause or Start Game" type="button">
+            <span class="dpad-dot"></span>
+          </button>
+          <button id="btn-right" class="dpad-btn right" aria-label="Move Right" type="button">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+              <polyline points="9 18 15 12 9 6"></polyline>
+            </svg>
+          </button>
+          <button id="btn-down" class="dpad-btn down" aria-label="Move Down" type="button">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+              <polyline points="6 9 12 15 18 9"></polyline>
+            </svg>
+          </button>
+        </div>
+      </nav>
+
+      <!-- Footer / Keybind Tips -->
+      <footer class="game-footer">
+        <div class="controls-hint desktop-only">
+          <span><kbd>↑</kbd><kbd>↓</kbd><kbd>←</kbd><kbd>→</kbd> or <kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> Move</span>
+          <span><kbd>Space</kbd> Start/Restart</span>
+          <span><kbd>P</kbd> Pause</span>
+          <span><kbd>M</kbd> Mute</span>
+        </div>
+        <div class="controls-hint mobile-only">
+          <span>Swipe or tap D-Pad to control</span>
+        </div>
+      </footer>
     </div>
-    <h1 id="instruction-text">Press spacebar to start the game</h1>
-    <img id="logo" src="logo.png" alt="snake-logo" />
+
+    <!-- Help / Instructions Modal -->
+    <dialog id="help-modal" class="modal-dialog glass-card">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h2 class="modal-title">How To Play</h2>
+          <button id="close-modal-btn" class="close-btn" aria-label="Close dialog" type="button">&times;</button>
+        </div>
+        <div class="modal-body">
+          <div class="modal-section">
+            <h3>🎮 Controls</h3>
+            <ul>
+              <li><strong>Desktop:</strong> Arrow Keys or <kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> to steer.</li>
+              <li><strong>Mobile:</strong> Swipe anywhere on screen or use the on-screen D-Pad.</li>
+              <li><strong>Pause / Sound:</strong> Press <kbd>P</kbd> to pause, <kbd>M</kbd> to toggle audio.</li>
+            </ul>
+          </div>
+          <div class="modal-section">
+            <h3>🌐 Boundary Modes</h3>
+            <ul>
+              <li><strong>Classic Mode:</strong> Hitting the border wall ends the game immediately.</li>
+              <li><strong>Wrap-around Mode:</strong> The snake slips through the outer walls and re-emerges on the opposite side.</li>
+            </ul>
+          </div>
+          <div class="modal-section">
+            <h3>⚡ Dynamic Levels & Juice</h3>
+            <p>Every 5 food items eaten speeds up the snake and advances your level. Watch out for golden bonus fruits!</p>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button id="modal-ok-btn" class="primary-btn" type="button">Got It!</button>
+        </div>
+      </div>
+    </dialog>
   </body>
 </html>
