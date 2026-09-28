@@ -1,43 +1,20 @@
 /**
  * ============================================================================
- * SNAKE 2.0 // NEXT-GEN ARCADE ENGINE
- * Senior Frontend Architecture: State Machine, High-DPI Canvas, Web Audio API,
- * Anti-Collision Direction Queue, Particle Systems, and Touch Navigation.
+ * SNAKE ARCADE // SYSTEM ENGINE & ROUTER
+ * Features:
+ *   1. Hub Manager & Screen Routing (Hub <-> Classic v1 <-> Next-Gen v2)
+ *   2. Classic Retro Snake Engine (1997 Nokia LCD Phosphor Edition)
+ *   3. Next-Gen Cyber Snake Engine (2026 High-DPI Canvas + Audio Synth + Juice)
+ *   4. Double-Buffered Input Queues & Touch / Swipe Engines
  * ============================================================================
  */
 
 'use strict';
 
-// IIFE to isolate scope and prevent global namespace pollution
 (() => {
   // --------------------------------------------------------------------------
-  // Configuration & Constants
+  // Global Constants & Directions
   // --------------------------------------------------------------------------
-  const CONFIG = {
-    gridSize: 20, // 20x20 tile board
-    baseSpeedMs: 140, // Starting tick delay
-    minSpeedMs: 55, // Max speed cap
-    speedStepMs: 4, // Acceleration per level
-    applesPerLevel: 5, // Food required to level up
-    bonusFoodChance: 0.18, // 18% chance of spawning golden bonus food
-    bonusDurationMs: 6500, // Golden food disappears after 6.5s
-    storageKeyHigh: 'snake2_high_score',
-    storageKeyMuted: 'snake2_sound_muted',
-    storageKeyMode: 'snake2_boundary_mode',
-  };
-
-  const GAME_STATE = {
-    IDLE: 'IDLE',
-    PLAYING: 'PLAYING',
-    PAUSED: 'PAUSED',
-    GAME_OVER: 'GAME_OVER',
-  };
-
-  const BOUNDARY_MODE = {
-    CLASSIC: 'classic', // Hit wall = Game Over
-    WRAP: 'wrap', // Pass through walls
-  };
-
   const DIRECTIONS = {
     UP: { x: 0, y: -1, name: 'up' },
     DOWN: { x: 0, y: 1, name: 'down' },
@@ -45,68 +22,58 @@
     RIGHT: { x: 1, y: 0, name: 'right' },
   };
 
-  // --------------------------------------------------------------------------
-  // DOM References
-  // --------------------------------------------------------------------------
-  const canvas = document.getElementById('game-canvas');
-  const ctx = canvas.getContext('2d');
-  const boardContainer = document.getElementById('board-container');
+  const STORAGE_KEYS = {
+    V1_HIGH: 'snake_v1_high_score',
+    V2_HIGH: 'snake_v2_high_score',
+    V2_MUTED: 'snake_v2_muted',
+    V2_MODE: 'snake_v2_boundary_mode',
+  };
 
-  // Stats displays
-  const scoreDisplay = document.getElementById('score-display');
-  const highScoreDisplay = document.getElementById('high-score-display');
-  const levelDisplay = document.getElementById('level-display');
+  // Polyfill roundRect for older WebViews / mobile browsers
+  if (typeof CanvasRenderingContext2D !== 'undefined' && !CanvasRenderingContext2D.prototype.roundRect) {
+    CanvasRenderingContext2D.prototype.roundRect = function(x, y, w, h, radii = 0) {
+      const r = typeof radii === 'number' ? radii : (Array.isArray(radii) ? radii[0] : 0);
+      this.beginPath();
+      this.moveTo(x + r, y);
+      this.arcTo(x + w, y, x + w, y + h, r);
+      this.arcTo(x + w, y + h, x, y + h, r);
+      this.arcTo(x, y + h, x, y, r);
+      this.arcTo(x, y, x + w, y, r);
+      this.closePath();
+      return this;
+    };
+  }
 
-  // Overlays & Modals
-  const startOverlay = document.getElementById('start-overlay');
-  const pauseOverlay = document.getElementById('pause-overlay');
-  const gameOverOverlay = document.getElementById('game-over-overlay');
-  const overlayModeTag = document.getElementById('overlay-mode-tag');
-
-  // Game over summary
-  const summaryScore = document.getElementById('summary-score');
-  const summaryApples = document.getElementById('summary-apples');
-  const summaryLevel = document.getElementById('summary-level');
-  const newHighScoreBanner = document.getElementById('new-high-score-banner');
-
-  // Buttons
-  const startBtn = document.getElementById('start-btn');
-  const resumeBtn = document.getElementById('resume-btn');
-  const restartFromPauseBtn = document.getElementById('restart-from-pause-btn');
-  const playAgainBtn = document.getElementById('play-again-btn');
-  const modeToggleBtn = document.getElementById('mode-toggle-btn');
-  const modeIcon = document.getElementById('mode-icon');
-  const modeName = document.getElementById('mode-name');
-  const soundToggleBtn = document.getElementById('sound-toggle-btn');
-  const soundIconOn = document.getElementById('sound-icon-on');
-  const soundIconOff = document.getElementById('sound-icon-off');
-  const helpBtn = document.getElementById('help-btn');
-  const helpModal = document.getElementById('help-modal');
-  const closeModalBtn = document.getElementById('close-modal-btn');
-  const modalOkBtn = document.getElementById('modal-ok-btn');
-
-  // D-Pad buttons
-  const dpadUp = document.getElementById('btn-up');
-  const dpadDown = document.getElementById('btn-down');
-  const dpadLeft = document.getElementById('btn-left');
-  const dpadRight = document.getElementById('btn-right');
-  const dpadCenter = document.getElementById('btn-center');
+  // Safe Haptic Feedback Helper
+  function triggerHaptic(pattern = 10) {
+    if ('vibrate' in navigator && typeof navigator.vibrate === 'function') {
+      try {
+        navigator.vibrate(pattern);
+      } catch (e) {
+        // Non-blocking
+      }
+    }
+  }
 
   // --------------------------------------------------------------------------
-  // Audio Synthesizer (Native Web Audio API)
+  // Web Audio Synthesizer (Zero-asset native synth)
   // --------------------------------------------------------------------------
-  class SoundFX {
+  class WebAudioSynth {
     constructor() {
       this.ctx = null;
       this.isMuted = false;
-      this.loadPreference();
+      try {
+        this.isMuted = localStorage.getItem(STORAGE_KEYS.V2_MUTED) === 'true';
+      } catch (e) {
+        this.isMuted = false;
+      }
     }
 
     init() {
       if (!this.ctx) {
-        const AudioCtx = window.AudioContext || window.webkitAudioContext;
-        if (AudioCtx) {
-          this.ctx = new AudioCtx();
+        const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+        if (AudioContextClass) {
+          this.ctx = new AudioContextClass();
         }
       }
       if (this.ctx && this.ctx.state === 'suspended') {
@@ -114,22 +81,11 @@
       }
     }
 
-    loadPreference() {
-      try {
-        const saved = localStorage.getItem(CONFIG.storageKeyMuted);
-        this.isMuted = saved === 'true';
-      } catch (e) {
-        this.isMuted = false;
-      }
-    }
-
     toggleMute() {
       this.isMuted = !this.isMuted;
       try {
-        localStorage.setItem(CONFIG.storageKeyMuted, this.isMuted.toString());
-      } catch (e) {
-        // Safe localStorage fallback
-      }
+        localStorage.setItem(STORAGE_KEYS.V2_MUTED, this.isMuted.toString());
+      } catch (e) {}
       return this.isMuted;
     }
 
@@ -144,7 +100,6 @@
 
       osc.type = isBonus ? 'triangle' : 'sine';
       if (isBonus) {
-        // Multi-frequency golden chime
         osc.frequency.setValueAtTime(587.33, now); // D5
         osc.frequency.exponentialRampToValueAtTime(880, now + 0.08); // A5
         osc.frequency.exponentialRampToValueAtTime(1174.66, now + 0.18); // D6
@@ -155,7 +110,6 @@
         osc.start(now);
         osc.stop(now + 0.25);
       } else {
-        // Crisp energetic bubble pop
         osc.frequency.setValueAtTime(320, now);
         osc.frequency.exponentialRampToValueAtTime(740, now + 0.09);
         gain.gain.setValueAtTime(0.15, now);
@@ -200,7 +154,6 @@
       osc.type = 'sawtooth';
       osc.frequency.setValueAtTime(140, now);
       osc.frequency.exponentialRampToValueAtTime(35, now + 0.35);
-
       gain.gain.setValueAtTime(0.25, now);
       gain.gain.exponentialRampToValueAtTime(0.001, now + 0.38);
 
@@ -212,7 +165,7 @@
   }
 
   // --------------------------------------------------------------------------
-  // Particle & Juice System
+  // Particles & Floating Scores (for Next-Gen v2)
   // --------------------------------------------------------------------------
   class Particle {
     constructor(x, y, color) {
@@ -237,16 +190,16 @@
       return this.alpha > 0;
     }
 
-    draw(context) {
-      context.save();
-      context.globalAlpha = Math.max(0, this.alpha);
-      context.fillStyle = this.color;
-      context.shadowBlur = 8;
-      context.shadowColor = this.color;
-      context.beginPath();
-      context.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
-      context.fill();
-      context.restore();
+    draw(ctx) {
+      ctx.save();
+      ctx.globalAlpha = Math.max(0, this.alpha);
+      ctx.fillStyle = this.color;
+      ctx.shadowBlur = 8;
+      ctx.shadowColor = this.color;
+      ctx.beginPath();
+      ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
     }
   }
 
@@ -266,71 +219,397 @@
       return this.alpha > 0;
     }
 
-    draw(context) {
-      context.save();
-      context.globalAlpha = Math.max(0, this.alpha);
-      context.font = 'bold 14px "JetBrains Mono", monospace';
-      context.fillStyle = this.color;
-      context.shadowBlur = 6;
-      context.shadowColor = this.color;
-      context.textAlign = 'center';
-      context.fillText(this.text, this.x, this.y);
-      context.restore();
+    draw(ctx) {
+      ctx.save();
+      ctx.globalAlpha = Math.max(0, this.alpha);
+      ctx.font = 'bold 14px "JetBrains Mono", monospace';
+      ctx.fillStyle = this.color;
+      ctx.shadowBlur = 6;
+      ctx.shadowColor = this.color;
+      ctx.textAlign = 'center';
+      ctx.fillText(this.text, this.x, this.y);
+      ctx.restore();
     }
   }
 
-  // Defensive roundRect polyfill for older browsers/webviews
-  if (typeof CanvasRenderingContext2D !== 'undefined' && !CanvasRenderingContext2D.prototype.roundRect) {
-    CanvasRenderingContext2D.prototype.roundRect = function(x, y, w, h, radii = 0) {
-      const r = typeof radii === 'number' ? radii : (Array.isArray(radii) ? radii[0] : 0);
-      this.beginPath();
-      this.moveTo(x + r, y);
-      this.arcTo(x + w, y, x + w, y + h, r);
-      this.arcTo(x + w, y + h, x, y + h, r);
-      this.arcTo(x, y + h, x, y, r);
-      this.arcTo(x, y, x + w, y, r);
-      this.closePath();
-      return this;
-    };
+  // --------------------------------------------------------------------------
+  // GAME ENGINE 1: RETRO CLASSIC SNAKE (v1)
+  // --------------------------------------------------------------------------
+  class ClassicSnakeGame {
+    constructor() {
+      this.gridSize = 20;
+      this.tickSpeed = 160; // Classic nostalgic tick rate
+      this.canvas = document.getElementById('v1-canvas');
+      this.ctx = this.canvas.getContext('2d');
+      this.container = document.getElementById('v1-board-container');
+
+      this.scoreDisplay = document.getElementById('v1-score');
+      this.highScoreDisplay = document.getElementById('v1-high-score');
+      this.summaryScore = document.getElementById('v1-summary-score');
+      this.newBestTag = document.getElementById('v1-new-best');
+
+      this.startOverlay = document.getElementById('v1-start-overlay');
+      this.gameOverOverlay = document.getElementById('v1-game-over-overlay');
+      this.startBtn = document.getElementById('v1-start-btn');
+      this.restartBtn = document.getElementById('v1-restart-btn');
+
+      this.score = 0;
+      this.highScore = 0;
+      this.snake = [];
+      this.direction = DIRECTIONS.RIGHT;
+      this.inputQueue = [];
+      this.food = null;
+
+      this.isPlaying = false;
+      this.isGameOver = false;
+      this.gameInterval = null;
+      this.tileSize = 24;
+
+      this.loadHighScore();
+      this.setupCanvas();
+      this.initIdleState();
+      this.bindInputs();
+    }
+
+    loadHighScore() {
+      try {
+        const saved = localStorage.getItem(STORAGE_KEYS.V1_HIGH);
+        this.highScore = saved ? parseInt(saved, 10) || 0 : 0;
+      } catch (e) {
+        this.highScore = 0;
+      }
+      this.highScoreDisplay.textContent = this.highScore.toString().padStart(3, '0');
+    }
+
+    saveHighScore() {
+      try {
+        localStorage.setItem(STORAGE_KEYS.V1_HIGH, this.highScore.toString());
+      } catch (e) {}
+    }
+
+    setupCanvas() {
+      const rect = this.canvas.getBoundingClientRect();
+      const dpr = window.devicePixelRatio || 1;
+      const size = rect.width > 0 ? rect.width : 400;
+      this.canvas.width = Math.round(size * dpr);
+      this.canvas.height = Math.round(size * dpr);
+      this.tileSize = this.canvas.width / this.gridSize;
+    }
+
+    initIdleState() {
+      this.snake = [
+        { x: 10, y: 10 },
+        { x: 9, y: 10 },
+        { x: 8, y: 10 },
+      ];
+      this.food = { x: 14, y: 10 };
+      this.score = 0;
+      this.direction = DIRECTIONS.RIGHT;
+      this.inputQueue = [];
+      this.isPlaying = false;
+      this.isGameOver = false;
+      this.updateHud();
+      this.draw();
+    }
+
+    start() {
+      this.stop();
+      this.score = 0;
+      this.snake = [
+        { x: 10, y: 10 },
+        { x: 9, y: 10 },
+        { x: 8, y: 10 },
+      ];
+      this.direction = DIRECTIONS.RIGHT;
+      this.inputQueue = [];
+      this.food = this.generateFood();
+      this.isPlaying = true;
+      this.isGameOver = false;
+
+      this.startOverlay.classList.add('hidden');
+      this.gameOverOverlay.classList.add('hidden');
+      this.updateHud();
+
+      this.gameInterval = setInterval(() => {
+        this.tick();
+      }, this.tickSpeed);
+      this.draw();
+    }
+
+    stop() {
+      if (this.gameInterval) {
+        clearInterval(this.gameInterval);
+        this.gameInterval = null;
+      }
+      this.isPlaying = false;
+    }
+
+    tick() {
+      if (!this.isPlaying) return;
+
+      // Handle queued direction
+      if (this.inputQueue.length > 0) {
+        this.direction = this.inputQueue.shift();
+      }
+
+      const head = { ...this.snake[0] };
+      head.x += this.direction.x;
+      head.y += this.direction.y;
+
+      // Classic Wall Collision -> Game Over
+      if (head.x < 0 || head.x >= this.gridSize || head.y < 0 || head.y >= this.gridSize) {
+        this.onGameOver();
+        return;
+      }
+
+      // Self Collision -> Game Over
+      if (this.snake.some(segment => segment.x === head.x && segment.y === head.y)) {
+        this.onGameOver();
+        return;
+      }
+
+      this.snake.unshift(head);
+
+      // Check food
+      if (head.x === this.food.x && head.y === this.food.y) {
+        this.score += 10;
+        triggerHaptic(15);
+        if (this.score > this.highScore) {
+          this.highScore = this.score;
+          this.saveHighScore();
+        }
+        this.food = this.generateFood();
+        this.updateHud();
+      } else {
+        this.snake.pop();
+      }
+
+      this.draw();
+    }
+
+    onGameOver() {
+      this.stop();
+      this.isGameOver = true;
+      triggerHaptic([30, 20, 50]);
+
+      this.summaryScore.textContent = this.score.toString();
+      if (this.score >= this.highScore && this.score > 0) {
+        this.newBestTag.classList.remove('hidden');
+      } else {
+        this.newBestTag.classList.add('hidden');
+      }
+
+      this.gameOverOverlay.classList.remove('hidden');
+      this.draw();
+    }
+
+    generateFood() {
+      const occupied = new Set(this.snake.map(s => `${s.x},${s.y}`));
+      const freeSpots = [];
+      for (let x = 0; x < this.gridSize; x++) {
+        for (let y = 0; y < this.gridSize; y++) {
+          if (!occupied.has(`${x},${y}`)) freeSpots.push({ x, y });
+        }
+      }
+      if (freeSpots.length === 0) return { x: 0, y: 0 };
+      return freeSpots[Math.floor(Math.random() * freeSpots.length)];
+    }
+
+    queueDirection(dir) {
+      if (!this.isPlaying) {
+        this.start();
+        return;
+      }
+      const lastDir = this.inputQueue.length > 0
+        ? this.inputQueue[this.inputQueue.length - 1]
+        : this.direction;
+
+      // Prevent 180° immediate reverse
+      if (dir.x === -lastDir.x && dir.y === -lastDir.y) return;
+      if (dir.x === lastDir.x && dir.y === lastDir.y) return;
+
+      if (this.inputQueue.length < 2) {
+        this.inputQueue.push(dir);
+        triggerHaptic(8);
+      }
+    }
+
+    draw() {
+      const ts = this.tileSize;
+      const ctx = this.ctx;
+      const w = this.canvas.width;
+      const h = this.canvas.height;
+
+      // Retro LCD screen background
+      ctx.fillStyle = '#9BBC0F';
+      ctx.fillRect(0, 0, w, h);
+
+      // Subtle CRT pixel grid pattern
+      ctx.strokeStyle = 'rgba(15, 56, 15, 0.08)';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      for (let x = ts; x < w; x += ts) {
+        ctx.moveTo(x, 0); ctx.lineTo(x, h);
+      }
+      for (let y = ts; y < h; y += ts) {
+        ctx.moveTo(0, y); ctx.lineTo(w, y);
+      }
+      ctx.stroke();
+
+      // Draw Classic Pixel Food
+      if (this.food) {
+        ctx.fillStyle = '#0F380F';
+        ctx.fillRect(this.food.x * ts + 2, this.food.y * ts + 2, ts - 4, ts - 4);
+      }
+
+      // Draw Classic Pixel Snake
+      this.snake.forEach((seg, i) => {
+        ctx.fillStyle = '#0F380F';
+        ctx.fillRect(seg.x * ts + 1, seg.y * ts + 1, ts - 2, ts - 2);
+
+        // Dark inner bevel for pixel look
+        if (i === 0) {
+          ctx.fillStyle = '#9BBC0F';
+          ctx.fillRect(seg.x * ts + 4, seg.y * ts + 4, ts - 8, ts - 8);
+          ctx.fillStyle = '#0F380F';
+          ctx.fillRect(seg.x * ts + 6, seg.y * ts + 6, ts - 12, ts - 12);
+        }
+      });
+    }
+
+    updateHud() {
+      this.scoreDisplay.textContent = this.score.toString().padStart(3, '0');
+      this.highScoreDisplay.textContent = this.highScore.toString().padStart(3, '0');
+    }
+
+    bindInputs() {
+      this.startBtn.addEventListener('click', () => this.start());
+      this.restartBtn.addEventListener('click', () => this.start());
+
+      // Retro D-Pad
+      const bind = (id, dir) => {
+        const el = document.getElementById(id);
+        if (!el) return;
+        el.addEventListener('pointerdown', (e) => {
+          e.preventDefault();
+          this.queueDirection(dir);
+        });
+      };
+      bind('v1-dpad-up', DIRECTIONS.UP);
+      bind('v1-dpad-down', DIRECTIONS.DOWN);
+      bind('v1-dpad-left', DIRECTIONS.LEFT);
+      bind('v1-dpad-right', DIRECTIONS.RIGHT);
+
+      document.getElementById('v1-dpad-center').addEventListener('pointerdown', (e) => {
+        e.preventDefault();
+        if (!this.isPlaying) this.start();
+      });
+
+      // Swipe Gestures
+      let sx = 0, sy = 0;
+      this.container.addEventListener('touchstart', (e) => {
+        if (e.touches.length > 0) {
+          sx = e.touches[0].clientX;
+          sy = e.touches[0].clientY;
+        }
+      }, { passive: true });
+
+      this.container.addEventListener('touchmove', (e) => {
+        if (e.cancelable) e.preventDefault();
+      }, { passive: false });
+
+      this.container.addEventListener('touchend', (e) => {
+        if (e.changedTouches.length === 0) return;
+        const dx = e.changedTouches[0].clientX - sx;
+        const dy = e.changedTouches[0].clientY - sy;
+        const adx = Math.abs(dx);
+        const ady = Math.abs(dy);
+
+        if (Math.max(adx, ady) > 22) {
+          if (adx > ady) {
+            this.queueDirection(dx > 0 ? DIRECTIONS.RIGHT : DIRECTIONS.LEFT);
+          } else {
+            this.queueDirection(dy > 0 ? DIRECTIONS.DOWN : DIRECTIONS.UP);
+          }
+        } else {
+          if (!this.isPlaying) this.start();
+        }
+      }, { passive: true });
+    }
   }
 
   // --------------------------------------------------------------------------
-  // Main Game Engine
+  // GAME ENGINE 2: NEXT-GEN CYBER SNAKE (v2)
   // --------------------------------------------------------------------------
-  class SnakeGame {
+  class NextGenSnakeGame {
     constructor() {
-      this.sound = new SoundFX();
-      this.state = GAME_STATE.IDLE;
-      this.boundaryMode = BOUNDARY_MODE.CLASSIC;
+      this.config = {
+        gridSize: 20,
+        baseSpeedMs: 140,
+        minSpeedMs: 55,
+        speedStepMs: 4,
+        applesPerLevel: 5,
+        bonusFoodChance: 0.18,
+        bonusDurationMs: 6500,
+      };
 
-      // Score & Progression
+      this.canvas = document.getElementById('v2-canvas');
+      this.ctx = this.canvas.getContext('2d');
+      this.boardContainer = document.getElementById('v2-board-container');
+
+      this.scoreDisplay = document.getElementById('v2-score-display');
+      this.highScoreDisplay = document.getElementById('v2-high-score-display');
+      this.levelDisplay = document.getElementById('v2-level-display');
+
+      this.startOverlay = document.getElementById('v2-start-overlay');
+      this.pauseOverlay = document.getElementById('v2-pause-overlay');
+      this.gameOverOverlay = document.getElementById('v2-game-over-overlay');
+      this.overlayModeTag = document.getElementById('v2-overlay-mode-tag');
+
+      this.summaryScore = document.getElementById('v2-summary-score');
+      this.summaryApples = document.getElementById('v2-summary-apples');
+      this.summaryLevel = document.getElementById('v2-summary-level');
+      this.newHighScoreBanner = document.getElementById('v2-new-high-score-banner');
+
+      this.startBtn = document.getElementById('v2-start-btn');
+      this.resumeBtn = document.getElementById('v2-resume-btn');
+      this.restartFromPauseBtn = document.getElementById('v2-restart-from-pause-btn');
+      this.playAgainBtn = document.getElementById('v2-play-again-btn');
+
+      this.modeToggleBtn = document.getElementById('v2-mode-toggle-btn');
+      this.modeIcon = document.getElementById('v2-mode-icon');
+      this.modeName = document.getElementById('v2-mode-name');
+
+      this.soundToggleBtn = document.getElementById('v2-sound-toggle-btn');
+      this.soundIconOn = document.getElementById('v2-sound-icon-on');
+      this.soundIconOff = document.getElementById('v2-sound-icon-off');
+
+      this.sound = new WebAudioSynth();
+      this.state = 'IDLE'; // IDLE | PLAYING | PAUSED | GAME_OVER
+      this.boundaryMode = 'classic'; // classic | wrap
+
       this.score = 0;
       this.highScore = 0;
       this.level = 1;
       this.applesEaten = 0;
       this.applesThisLevel = 0;
 
-      // Entities
       this.snake = [];
       this.direction = DIRECTIONS.RIGHT;
-      this.nextDirection = DIRECTIONS.RIGHT;
-      this.inputQueue = []; // Double-buffer for rapid keypresses
+      this.inputQueue = [];
       this.food = null;
       this.bonusFood = null;
       this.bonusTimer = null;
 
-      // Visuals
       this.particles = [];
       this.floatingTexts = [];
       this.screenShake = 0;
-      this.tileSize = 30; // Logical tile size calculated on resize
+      this.tileSize = 30;
 
-      // Timing Loop
       this.lastTickTime = 0;
-      this.tickInterval = CONFIG.baseSpeedMs;
+      this.tickInterval = this.config.baseSpeedMs;
       this.animFrameId = null;
 
-      // Setup
       this.loadSettings();
       this.setupCanvas();
       this.initIdleBoard();
@@ -338,14 +617,43 @@
       this.updateHud();
       this.updateModeUI();
       this.updateSoundUI();
-
-      // Start animation render loop
       this.startRenderLoop();
     }
 
+    loadSettings() {
+      try {
+        const savedHigh = localStorage.getItem(STORAGE_KEYS.V2_HIGH);
+        if (savedHigh) this.highScore = parseInt(savedHigh, 10) || 0;
+
+        const savedMode = localStorage.getItem(STORAGE_KEYS.V2_MODE);
+        if (savedMode === 'wrap' || savedMode === 'classic') this.boundaryMode = savedMode;
+      } catch (e) {}
+    }
+
+    saveHighScore() {
+      try {
+        localStorage.setItem(STORAGE_KEYS.V2_HIGH, this.highScore.toString());
+      } catch (e) {}
+    }
+
+    saveMode() {
+      try {
+        localStorage.setItem(STORAGE_KEYS.V2_MODE, this.boundaryMode);
+      } catch (e) {}
+    }
+
+    setupCanvas() {
+      const rect = this.canvas.getBoundingClientRect();
+      const dpr = window.devicePixelRatio || 1;
+      const size = rect.width > 0 ? rect.width : 400;
+      this.canvas.width = Math.round(size * dpr);
+      this.canvas.height = Math.round(size * dpr);
+      this.tileSize = this.canvas.width / this.config.gridSize;
+    }
+
     initIdleBoard() {
-      const startX = Math.floor(CONFIG.gridSize / 2);
-      const startY = Math.floor(CONFIG.gridSize / 2);
+      const startX = Math.floor(this.config.gridSize / 2);
+      const startY = Math.floor(this.config.gridSize / 2);
       this.snake = [
         { x: startX, y: startY },
         { x: startX - 1, y: startY },
@@ -354,64 +662,15 @@
       this.food = { x: startX + 4, y: startY };
     }
 
-    // ------------------------------------------------------------------------
-    // Initialization & Storage
-    // ------------------------------------------------------------------------
-    loadSettings() {
-      try {
-        const savedHigh = localStorage.getItem(CONFIG.storageKeyHigh);
-        if (savedHigh !== null) {
-          this.highScore = parseInt(savedHigh, 10) || 0;
-        }
-
-        const savedMode = localStorage.getItem(CONFIG.storageKeyMode);
-        if (savedMode === BOUNDARY_MODE.WRAP || savedMode === BOUNDARY_MODE.CLASSIC) {
-          this.boundaryMode = savedMode;
-        }
-      } catch (e) {
-        console.warn('Storage unavailable:', e);
-      }
-    }
-
-    saveHighScore() {
-      try {
-        localStorage.setItem(CONFIG.storageKeyHigh, this.highScore.toString());
-      } catch (e) {
-        // Safe fallback
-      }
-    }
-
-    saveMode() {
-      try {
-        localStorage.setItem(CONFIG.storageKeyMode, this.boundaryMode);
-      } catch (e) {
-        // Safe fallback
-      }
-    }
-
-    setupCanvas() {
-      const rect = canvas.getBoundingClientRect();
-      const dpr = window.devicePixelRatio || 1;
-      const displayWidth = rect.width > 0 ? rect.width : 400;
-      const displayHeight = rect.height > 0 ? rect.height : 400;
-      canvas.width = Math.round(displayWidth * dpr);
-      canvas.height = Math.round(displayHeight * dpr);
-      this.tileSize = canvas.width / CONFIG.gridSize;
-    }
-
-    // ------------------------------------------------------------------------
-    // Game Lifecycle Management
-    // ------------------------------------------------------------------------
     reset() {
       this.score = 0;
       this.level = 1;
       this.applesEaten = 0;
       this.applesThisLevel = 0;
-      this.tickInterval = CONFIG.baseSpeedMs;
+      this.tickInterval = this.config.baseSpeedMs;
 
-      // Spawn initial 3-segment snake centered
-      const startX = Math.floor(CONFIG.gridSize / 2);
-      const startY = Math.floor(CONFIG.gridSize / 2);
+      const startX = Math.floor(this.config.gridSize / 2);
+      const startY = Math.floor(this.config.gridSize / 2);
       this.snake = [
         { x: startX, y: startY },
         { x: startX - 1, y: startY },
@@ -419,62 +678,62 @@
       ];
 
       this.direction = DIRECTIONS.RIGHT;
-      this.nextDirection = DIRECTIONS.RIGHT;
       this.inputQueue = [];
-
       this.clearBonusFood();
       this.food = this.generateFood();
       this.particles = [];
       this.floatingTexts = [];
       this.screenShake = 0;
-
       this.updateHud();
     }
 
     start() {
       this.sound.init();
       this.reset();
-      this.state = GAME_STATE.PLAYING;
+      this.state = 'PLAYING';
       this.lastTickTime = performance.now();
 
-      // Hide Overlays
-      startOverlay.classList.add('hidden');
-      pauseOverlay.classList.add('hidden');
-      gameOverOverlay.classList.add('hidden');
+      this.startOverlay.classList.add('hidden');
+      this.pauseOverlay.classList.add('hidden');
+      this.gameOverOverlay.classList.add('hidden');
     }
 
     pause() {
-      if (this.state === GAME_STATE.PLAYING) {
-        this.state = GAME_STATE.PAUSED;
-        pauseOverlay.classList.remove('hidden');
+      if (this.state === 'PLAYING') {
+        this.state = 'PAUSED';
+        this.pauseOverlay.classList.remove('hidden');
       }
     }
 
     resume() {
-      if (this.state === GAME_STATE.PAUSED) {
-        this.state = GAME_STATE.PLAYING;
+      if (this.state === 'PAUSED') {
+        this.state = 'PLAYING';
         this.lastTickTime = performance.now();
-        pauseOverlay.classList.add('hidden');
+        this.pauseOverlay.classList.add('hidden');
       }
     }
 
     togglePause() {
-      if (this.state === GAME_STATE.PLAYING) {
-        this.pause();
-      } else if (this.state === GAME_STATE.PAUSED) {
-        this.resume();
-      } else if (this.state === GAME_STATE.IDLE || this.state === GAME_STATE.GAME_OVER) {
-        this.start();
-      }
+      if (this.state === 'PLAYING') this.pause();
+      else if (this.state === 'PAUSED') this.resume();
+      else if (this.state === 'IDLE' || this.state === 'GAME_OVER') this.start();
+    }
+
+    stop() {
+      this.state = 'IDLE';
+      this.clearBonusFood();
+      this.initIdleBoard();
+      this.startOverlay.classList.remove('hidden');
+      this.pauseOverlay.classList.add('hidden');
+      this.gameOverOverlay.classList.add('hidden');
     }
 
     gameOver() {
-      this.state = GAME_STATE.GAME_OVER;
+      this.state = 'GAME_OVER';
       this.sound.playCrash();
       this.screenShake = 16;
-      this.triggerHaptic([40, 30, 60]);
+      triggerHaptic([40, 30, 60]);
 
-      // Spawn crash dispersion particles
       const head = this.snake[0];
       const px = head.x * this.tileSize + this.tileSize / 2;
       const py = head.y * this.tileSize + this.tileSize / 2;
@@ -482,7 +741,6 @@
         this.particles.push(new Particle(px, py, '#F43F5E'));
       }
 
-      // Check high score
       let isNewRecord = false;
       if (this.score > this.highScore) {
         this.highScore = this.score;
@@ -490,60 +748,49 @@
         isNewRecord = true;
       }
 
-      // Populate Game Over overlay
-      summaryScore.textContent = this.score.toString();
-      summaryApples.textContent = this.applesEaten.toString();
-      summaryLevel.textContent = this.level.toString();
+      this.summaryScore.textContent = this.score.toString();
+      this.summaryApples.textContent = this.applesEaten.toString();
+      this.summaryLevel.textContent = this.level.toString();
 
       if (isNewRecord) {
-        newHighScoreBanner.classList.remove('hidden');
+        this.newHighScoreBanner.classList.remove('hidden');
       } else {
-        newHighScoreBanner.classList.add('hidden');
+        this.newHighScoreBanner.classList.add('hidden');
       }
 
       this.updateHud();
 
-      // Show Game Over modal after brief dramatic delay
       setTimeout(() => {
-        if (this.state === GAME_STATE.GAME_OVER) {
-          gameOverOverlay.classList.remove('hidden');
+        if (this.state === 'GAME_OVER') {
+          this.gameOverOverlay.classList.remove('hidden');
         }
       }, 350);
     }
 
-    // ------------------------------------------------------------------------
-    // Mechanics: Movement & Collisions
-    // ------------------------------------------------------------------------
     updateGameLogic() {
-      if (this.state !== GAME_STATE.PLAYING) return;
+      if (this.state !== 'PLAYING') return;
 
-      // Dequeue next validated direction
       if (this.inputQueue.length > 0) {
         this.direction = this.inputQueue.shift();
       }
 
-      // Compute next head position
       const currentHead = this.snake[0];
       let newX = currentHead.x + this.direction.x;
       let newY = currentHead.y + this.direction.y;
 
-      // Handle Boundaries
-      if (this.boundaryMode === BOUNDARY_MODE.WRAP) {
-        // Portal Wrap-around
-        if (newX < 0) newX = CONFIG.gridSize - 1;
-        else if (newX >= CONFIG.gridSize) newX = 0;
+      if (this.boundaryMode === 'wrap') {
+        if (newX < 0) newX = this.config.gridSize - 1;
+        else if (newX >= this.config.gridSize) newX = 0;
 
-        if (newY < 0) newY = CONFIG.gridSize - 1;
-        else if (newY >= CONFIG.gridSize) newY = 0;
+        if (newY < 0) newY = this.config.gridSize - 1;
+        else if (newY >= this.config.gridSize) newY = 0;
       } else {
-        // Classic Wall Collision
-        if (newX < 0 || newX >= CONFIG.gridSize || newY < 0 || newY >= CONFIG.gridSize) {
+        if (newX < 0 || newX >= this.config.gridSize || newY < 0 || newY >= this.config.gridSize) {
           this.gameOver();
           return;
         }
       }
 
-      // Self-collision check (skip checking tail if snake won't grow this tick)
       const willEatFood = (newX === this.food.x && newY === this.food.y);
       const willEatBonus = this.bonusFood && (newX === this.bonusFood.x && newY === this.bonusFood.y);
       const bodyToCheck = (willEatFood || willEatBonus) ? this.snake : this.snake.slice(0, -1);
@@ -553,17 +800,13 @@
         return;
       }
 
-      // Move Snake Head
-      const newHead = { x: newX, y: newY };
-      this.snake.unshift(newHead);
+      this.snake.unshift({ x: newX, y: newY });
 
-      // Check Food Eaten
       if (willEatFood) {
         this.onFoodEaten(false);
       } else if (willEatBonus) {
         this.onFoodEaten(true);
       } else {
-        // Pop tail if no food eaten
         this.snake.pop();
       }
     }
@@ -572,13 +815,12 @@
       const points = isBonus ? 30 : 10;
       this.score += points;
       this.applesEaten++;
-      this.triggerHaptic(20);
+      triggerHaptic(20);
 
       const targetFood = isBonus ? this.bonusFood : this.food;
       const px = targetFood.x * this.tileSize + this.tileSize / 2;
       const py = targetFood.y * this.tileSize + this.tileSize / 2;
 
-      // Sound & Visual Juice
       this.sound.playEat(isBonus);
       const color = isBonus ? '#F59E0B' : '#34D399';
       for (let i = 0; i < (isBonus ? 20 : 12); i++) {
@@ -590,22 +832,15 @@
         this.clearBonusFood();
       } else {
         this.applesThisLevel++;
-
-        // Level Up Check
-        if (this.applesThisLevel >= CONFIG.applesPerLevel) {
+        if (this.applesThisLevel >= this.config.applesPerLevel) {
           this.levelUp();
         }
-
-        // Generate new regular food
         this.food = this.generateFood();
-
-        // Maybe spawn bonus golden food
-        if (!this.bonusFood && Math.random() < CONFIG.bonusFoodChance) {
+        if (!this.bonusFood && Math.random() < this.config.bonusFoodChance) {
           this.spawnBonusFood();
         }
       }
 
-      // Update High Score live if surpassed
       if (this.score > this.highScore) {
         this.highScore = this.score;
         this.saveHighScore();
@@ -618,11 +853,9 @@
       this.level++;
       this.applesThisLevel = 0;
       this.sound.playLevelUp();
-
-      // Speed up game ticks smoothly
       this.tickInterval = Math.max(
-        CONFIG.minSpeedMs,
-        CONFIG.baseSpeedMs - (this.level - 1) * CONFIG.speedStepMs
+        this.config.minSpeedMs,
+        this.config.baseSpeedMs - (this.level - 1) * this.config.speedStepMs
       );
 
       const head = this.snake[0];
@@ -631,33 +864,21 @@
       this.floatingTexts.push(new FloatingText(`LEVEL ${this.level}!`, px, py - 20, '#06B6D4'));
     }
 
-    // ------------------------------------------------------------------------
-    // Entity Generation (Safe O(N) Algorithm)
-    // ------------------------------------------------------------------------
     generateFood() {
-      const occupied = new Set();
-      this.snake.forEach(seg => occupied.add(`${seg.x},${seg.y}`));
-      if (this.bonusFood) {
-        occupied.add(`${this.bonusFood.x},${this.bonusFood.y}`);
-      }
+      const occupied = new Set(this.snake.map(s => `${s.x},${s.y}`));
+      if (this.bonusFood) occupied.add(`${this.bonusFood.x},${this.bonusFood.y}`);
 
       const availableSpots = [];
-      for (let x = 0; x < CONFIG.gridSize; x++) {
-        for (let y = 0; y < CONFIG.gridSize; y++) {
-          if (!occupied.has(`${x},${y}`)) {
-            availableSpots.push({ x, y });
-          }
+      for (let x = 0; x < this.config.gridSize; x++) {
+        for (let y = 0; y < this.config.gridSize; y++) {
+          if (!occupied.has(`${x},${y}`)) availableSpots.push({ x, y });
         }
       }
-
       if (availableSpots.length === 0) {
-        // Player filled the entire board! Victory!
         this.gameOver();
         return { x: 0, y: 0 };
       }
-
-      const randomIdx = Math.floor(Math.random() * availableSpots.length);
-      return availableSpots[randomIdx];
+      return availableSpots[Math.floor(Math.random() * availableSpots.length)];
     }
 
     spawnBonusFood() {
@@ -666,12 +887,12 @@
       this.bonusFood = {
         ...pos,
         spawnTime: performance.now(),
-        duration: CONFIG.bonusDurationMs,
+        duration: this.config.bonusDurationMs,
       };
 
       this.bonusTimer = setTimeout(() => {
         this.clearBonusFood();
-      }, CONFIG.bonusDurationMs);
+      }, this.config.bonusDurationMs);
     }
 
     clearBonusFood() {
@@ -682,83 +903,50 @@
       this.bonusFood = null;
     }
 
-    // ------------------------------------------------------------------------
-    // Input Handling (Buffer & Anti-Suicide Guard)
-    // ------------------------------------------------------------------------
     queueDirection(newDir) {
-      if (this.state === GAME_STATE.IDLE || this.state === GAME_STATE.GAME_OVER) {
+      if (this.state === 'IDLE' || this.state === 'GAME_OVER') {
         this.start();
         return;
       }
-      if (this.state === GAME_STATE.PAUSED) {
+      if (this.state === 'PAUSED') {
         this.resume();
       }
 
-      // Check against current queued directions or active direction
       const lastPlannedDir = this.inputQueue.length > 0
         ? this.inputQueue[this.inputQueue.length - 1]
         : this.direction;
 
-      // Prevent 180° immediate reversal
-      if (
-        newDir.x === -lastPlannedDir.x &&
-        newDir.y === -lastPlannedDir.y
-      ) {
-        return;
-      }
+      if (newDir.x === -lastPlannedDir.x && newDir.y === -lastPlannedDir.y) return;
+      if (newDir.x === lastPlannedDir.x && newDir.y === lastPlannedDir.y) return;
 
-      // Prevent duplicate queued direction
-      if (
-        newDir.x === lastPlannedDir.x &&
-        newDir.y === lastPlannedDir.y
-      ) {
-        return;
-      }
-
-      // Buffer max 2 inputs to prevent queue lag
       if (this.inputQueue.length < 2) {
         this.inputQueue.push(newDir);
-        this.triggerHaptic(8);
+        triggerHaptic(8);
       }
     }
 
-    triggerHaptic(pattern = 10) {
-      if ('vibrate' in navigator && typeof navigator.vibrate === 'function') {
-        try {
-          navigator.vibrate(pattern);
-        } catch (e) {
-          // Ignore vibration restrictions
-        }
-      }
-    }
-
-    // ------------------------------------------------------------------------
-    // UI & Mode Updates
-    // ------------------------------------------------------------------------
     updateHud() {
-      scoreDisplay.textContent = this.score.toString().padStart(3, '0');
-      highScoreDisplay.textContent = this.highScore.toString().padStart(3, '0');
-      levelDisplay.textContent = this.level.toString().padStart(2, '0');
+      this.scoreDisplay.textContent = this.score.toString().padStart(3, '0');
+      this.highScoreDisplay.textContent = this.highScore.toString().padStart(3, '0');
+      this.levelDisplay.textContent = this.level.toString().padStart(2, '0');
     }
 
     toggleBoundaryMode() {
-      this.boundaryMode = this.boundaryMode === BOUNDARY_MODE.CLASSIC
-        ? BOUNDARY_MODE.WRAP
-        : BOUNDARY_MODE.CLASSIC;
+      this.boundaryMode = this.boundaryMode === 'classic' ? 'wrap' : 'classic';
       this.saveMode();
       this.updateModeUI();
     }
 
     updateModeUI() {
-      const isWrap = this.boundaryMode === BOUNDARY_MODE.WRAP;
-      modeIcon.textContent = isWrap ? '🌐' : '🛡️';
-      modeName.textContent = isWrap ? 'Wrap' : 'Classic';
-      overlayModeTag.textContent = isWrap ? '🌐 Wrap-around Portals' : '🛡️ Classic Wall Death';
+      const isWrap = this.boundaryMode === 'wrap';
+      this.modeIcon.textContent = isWrap ? '🌐' : '🛡️';
+      this.modeName.textContent = isWrap ? 'Wrap' : 'Classic';
+      this.overlayModeTag.textContent = isWrap ? '🌐 Wrap-around Portals' : '🛡️ Classic Wall Death';
 
       if (isWrap) {
-        boardContainer.classList.add('wrap-mode');
+        this.boardContainer.classList.add('wrap-mode');
       } else {
-        boardContainer.classList.remove('wrap-mode');
+        this.boardContainer.classList.remove('wrap-mode');
       }
     }
 
@@ -769,44 +957,36 @@
 
     updateSoundUI() {
       if (this.sound.isMuted) {
-        soundIconOn.classList.add('hidden');
-        soundIconOff.classList.remove('hidden');
+        this.soundIconOn.classList.add('hidden');
+        this.soundIconOff.classList.remove('hidden');
       } else {
-        soundIconOn.classList.remove('hidden');
-        soundIconOff.classList.add('hidden');
+        this.soundIconOn.classList.remove('hidden');
+        this.soundIconOff.classList.add('hidden');
       }
     }
 
-    // ------------------------------------------------------------------------
-    // Rendering & Animation Loop (60+ FPS)
-    // ------------------------------------------------------------------------
     startRenderLoop() {
       const loop = (timestamp) => {
-        // Handle Logic Ticks
-        if (this.state === GAME_STATE.PLAYING) {
+        if (this.state === 'PLAYING') {
           if (timestamp - this.lastTickTime >= this.tickInterval) {
             this.updateGameLogic();
             this.lastTickTime = timestamp;
           }
         }
-
-        // Render Frame
         this.render(timestamp);
-
         this.animFrameId = requestAnimationFrame(loop);
       };
-
       this.animFrameId = requestAnimationFrame(loop);
     }
 
     render(timestamp) {
-      const width = canvas.width;
-      const height = canvas.height;
+      const width = this.canvas.width;
+      const height = this.canvas.height;
       const ts = this.tileSize;
+      const ctx = this.ctx;
 
       ctx.save();
 
-      // Screen Shake handling
       if (this.screenShake > 0) {
         const sx = (Math.random() - 0.5) * this.screenShake;
         const sy = (Math.random() - 0.5) * this.screenShake;
@@ -815,76 +995,43 @@
         if (this.screenShake < 0.5) this.screenShake = 0;
       }
 
-      // Background Clear
       ctx.fillStyle = '#080C14';
       ctx.fillRect(0, 0, width, height);
 
-      // Draw Grid Matrix
-      this.drawGrid(width, height, ts);
-
-      // Draw Boundary Highlights
-      this.drawBoundaries(width, height);
-
-      // Draw Food Items
-      this.drawFood(timestamp, ts);
-
-      // Draw Snake
-      this.drawSnake(ts);
-
-      // Draw Particles & Floating Scores
-      this.drawJuice();
-
-      ctx.restore();
-    }
-
-    drawGrid(w, h, ts) {
-      ctx.save();
+      // Grid
       ctx.lineWidth = 1;
       ctx.strokeStyle = 'rgba(255, 255, 255, 0.025)';
       ctx.beginPath();
-      for (let x = ts; x < w; x += ts) {
-        ctx.moveTo(x, 0);
-        ctx.lineTo(x, h);
+      for (let x = ts; x < width; x += ts) {
+        ctx.moveTo(x, 0); ctx.lineTo(x, height);
       }
-      for (let y = ts; y < h; y += ts) {
-        ctx.moveTo(0, y);
-        ctx.lineTo(w, y);
+      for (let y = ts; y < height; y += ts) {
+        ctx.moveTo(0, y); ctx.lineTo(width, y);
       }
       ctx.stroke();
-      ctx.restore();
-    }
 
-    drawBoundaries(w, h) {
-      ctx.save();
-      if (this.boundaryMode === BOUNDARY_MODE.WRAP) {
-        // Portal neon lines
+      // Boundaries
+      if (this.boundaryMode === 'wrap') {
         ctx.lineWidth = 2.5;
         ctx.strokeStyle = 'rgba(6, 182, 212, 0.4)';
         ctx.shadowBlur = 10;
         ctx.shadowColor = '#06B6D4';
-        ctx.strokeRect(1, 1, w - 2, h - 2);
+        ctx.strokeRect(1, 1, width - 2, height - 2);
       } else {
-        // Classic solid wall border
         ctx.lineWidth = 2;
         ctx.strokeStyle = 'rgba(255, 255, 255, 0.12)';
-        ctx.strokeRect(1, 1, w - 2, h - 2);
+        ctx.strokeRect(1, 1, width - 2, height - 2);
       }
-      ctx.restore();
-    }
 
-    drawFood(timestamp, ts) {
-      // 1. Regular Apple Food
+      // Food
       if (this.food) {
         const fx = this.food.x * ts + ts / 2;
         const fy = this.food.y * ts + ts / 2;
         const pulse = Math.sin(timestamp * 0.007) * 2;
         const radius = (ts / 2) * 0.72 + pulse;
 
-        ctx.save();
         ctx.shadowBlur = 16;
         ctx.shadowColor = '#F43F5E';
-
-        // Radiant glow gradient
         const grad = ctx.createRadialGradient(fx - radius * 0.3, fy - radius * 0.3, 1, fx, fy, radius);
         grad.addColorStop(0, '#FDA4AF');
         grad.addColorStop(0.5, '#F43F5E');
@@ -895,32 +1042,25 @@
         ctx.arc(fx, fy, Math.max(3, radius), 0, Math.PI * 2);
         ctx.fill();
 
-        // Apple Stem
         ctx.shadowBlur = 0;
         ctx.strokeStyle = '#34D399';
         ctx.lineWidth = 2;
         ctx.beginPath();
         ctx.arc(fx + 2, fy - radius, 4, 0, Math.PI * 0.6);
         ctx.stroke();
-
-        ctx.restore();
       }
 
-      // 2. Golden Bonus Food
+      // Golden Bonus Food
       if (this.bonusFood) {
         const bx = this.bonusFood.x * ts + ts / 2;
         const by = this.bonusFood.y * ts + ts / 2;
         const pulse = Math.sin(timestamp * 0.012) * 3;
         const radius = (ts / 2) * 0.78 + pulse;
-
-        // Shrinking timer ring around bonus
         const elapsed = timestamp - this.bonusFood.spawnTime;
         const timeLeftRatio = Math.max(0, 1 - elapsed / this.bonusFood.duration);
 
-        ctx.save();
         ctx.shadowBlur = 20;
         ctx.shadowColor = '#F59E0B';
-
         const grad = ctx.createRadialGradient(bx - radius * 0.3, by - radius * 0.3, 1, bx, by, radius);
         grad.addColorStop(0, '#FEF08A');
         grad.addColorStop(0.5, '#F59E0B');
@@ -931,289 +1071,151 @@
         ctx.arc(bx, by, Math.max(3, radius), 0, Math.PI * 2);
         ctx.fill();
 
-        // Timer Arc
         ctx.strokeStyle = '#FDE047';
         ctx.lineWidth = 2.5;
         ctx.beginPath();
         ctx.arc(bx, by, ts * 0.52, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * timeLeftRatio);
         ctx.stroke();
-
-        ctx.restore();
       }
-    }
 
-    drawSnake(ts) {
-      if (this.snake.length === 0) return;
+      // Snake
+      if (this.snake.length > 0) {
+        const len = this.snake.length;
+        for (let i = len - 1; i >= 0; i--) {
+          const seg = this.snake[i];
+          const cx = seg.x * ts + ts / 2;
+          const cy = seg.y * ts + ts / 2;
 
-      const len = this.snake.length;
+          ctx.save();
+          if (i === 0) {
+            ctx.shadowBlur = 18;
+            ctx.shadowColor = '#10B981';
+            const grad = ctx.createRadialGradient(cx, cy, 2, cx, cy, ts * 0.5);
+            grad.addColorStop(0, '#6EE7B7');
+            grad.addColorStop(1, '#059669');
+            ctx.fillStyle = grad;
 
-      // Draw body segments with smooth rounded connections
-      for (let i = len - 1; i >= 0; i--) {
-        const seg = this.snake[i];
-        const cx = seg.x * ts + ts / 2;
-        const cy = seg.y * ts + ts / 2;
+            ctx.beginPath();
+            ctx.roundRect(seg.x * ts + 2, seg.y * ts + 2, ts - 4, ts - 4, 8);
+            ctx.fill();
 
-        ctx.save();
-        if (i === 0) {
-          // Snake Head
-          ctx.shadowBlur = 18;
-          ctx.shadowColor = '#10B981';
+            // Eyes
+            const eyeOffset = ts * 0.22;
+            const eyeRadius = ts * 0.12;
+            const pupilRadius = ts * 0.06;
+            let lx, ly, rx, ry, px = 0, py = 0;
 
-          const grad = ctx.createRadialGradient(cx, cy, 2, cx, cy, ts * 0.5);
-          grad.addColorStop(0, '#6EE7B7');
-          grad.addColorStop(1, '#059669');
-          ctx.fillStyle = grad;
+            if (this.direction === DIRECTIONS.UP) {
+              lx = cx - eyeOffset; rx = cx + eyeOffset; ly = ry = cy - eyeOffset; py = -1.5;
+            } else if (this.direction === DIRECTIONS.DOWN) {
+              lx = cx - eyeOffset; rx = cx + eyeOffset; ly = ry = cy + eyeOffset; py = 1.5;
+            } else if (this.direction === DIRECTIONS.LEFT) {
+              lx = rx = cx - eyeOffset; ly = cy - eyeOffset; ry = cy + eyeOffset; px = -1.5;
+            } else {
+              lx = rx = cx + eyeOffset; ly = cy - eyeOffset; ry = cy + eyeOffset; px = 1.5;
+            }
 
-          ctx.beginPath();
-          ctx.roundRect(seg.x * ts + 2, seg.y * ts + 2, ts - 4, ts - 4, 8);
-          ctx.fill();
+            ctx.fillStyle = '#FFFFFF';
+            ctx.shadowBlur = 0;
+            ctx.beginPath();
+            ctx.arc(lx, ly, eyeRadius, 0, Math.PI * 2);
+            ctx.arc(rx, ry, eyeRadius, 0, Math.PI * 2);
+            ctx.fill();
 
-          // Render directional eyes
-          this.drawEyes(cx, cy, ts);
-        } else {
-          // Body Segment (Gradient from bright mint to deep emerald)
-          const ratio = 1 - i / len;
-          ctx.shadowBlur = 8;
-          ctx.shadowColor = 'rgba(16, 185, 129, 0.25)';
-
-          // Smooth interpolation color
-          const g = Math.round(180 + ratio * 35);
-          ctx.fillStyle = `rgb(16, ${g}, ${Math.round(120 + ratio * 30)})`;
-
-          const padding = 2 + (1 - ratio) * 2;
-          ctx.beginPath();
-          ctx.roundRect(
-            seg.x * ts + padding,
-            seg.y * ts + padding,
-            ts - padding * 2,
-            ts - padding * 2,
-            6
-          );
-          ctx.fill();
+            ctx.fillStyle = '#064E3B';
+            ctx.beginPath();
+            ctx.arc(lx + px, ly + py, pupilRadius, 0, Math.PI * 2);
+            ctx.arc(rx + px, ry + py, pupilRadius, 0, Math.PI * 2);
+            ctx.fill();
+          } else {
+            const ratio = 1 - i / len;
+            ctx.shadowBlur = 8;
+            ctx.shadowColor = 'rgba(16, 185, 129, 0.25)';
+            const g = Math.round(180 + ratio * 35);
+            ctx.fillStyle = `rgb(16, ${g}, ${Math.round(120 + ratio * 30)})`;
+            const p = 2 + (1 - ratio) * 2;
+            ctx.beginPath();
+            ctx.roundRect(seg.x * ts + p, seg.y * ts + p, ts - p * 2, ts - p * 2, 6);
+            ctx.fill();
+          }
+          ctx.restore();
         }
-        ctx.restore();
-      }
-    }
-
-    drawEyes(cx, cy, ts) {
-      ctx.save();
-      const eyeOffset = ts * 0.22;
-      const eyeRadius = ts * 0.12;
-      const pupilRadius = ts * 0.06;
-
-      let leftEyeX, leftEyeY, rightEyeX, rightEyeY;
-      let pupilX = 0, pupilY = 0;
-
-      // Position eyes based on movement direction
-      if (this.direction === DIRECTIONS.UP) {
-        leftEyeX = cx - eyeOffset;
-        rightEyeX = cx + eyeOffset;
-        leftEyeY = rightEyeY = cy - eyeOffset;
-        pupilY = -1.5;
-      } else if (this.direction === DIRECTIONS.DOWN) {
-        leftEyeX = cx - eyeOffset;
-        rightEyeX = cx + eyeOffset;
-        leftEyeY = rightEyeY = cy + eyeOffset;
-        pupilY = 1.5;
-      } else if (this.direction === DIRECTIONS.LEFT) {
-        leftEyeX = rightEyeX = cx - eyeOffset;
-        leftEyeY = cy - eyeOffset;
-        rightEyeY = cy + eyeOffset;
-        pupilX = -1.5;
-      } else {
-        // RIGHT
-        leftEyeX = rightEyeX = cx + eyeOffset;
-        leftEyeY = cy - eyeOffset;
-        rightEyeY = cy + eyeOffset;
-        pupilX = 1.5;
       }
 
-      // Eye Whites
-      ctx.fillStyle = '#FFFFFF';
-      ctx.shadowBlur = 0;
-      ctx.beginPath();
-      ctx.arc(leftEyeX, leftEyeY, eyeRadius, 0, Math.PI * 2);
-      ctx.arc(rightEyeX, rightEyeY, eyeRadius, 0, Math.PI * 2);
-      ctx.fill();
-
-      // Dark Pupils
-      ctx.fillStyle = '#064E3B';
-      ctx.beginPath();
-      ctx.arc(leftEyeX + pupilX, leftEyeY + pupilY, pupilRadius, 0, Math.PI * 2);
-      ctx.arc(rightEyeX + pupilX, rightEyeY + pupilY, pupilRadius, 0, Math.PI * 2);
-      ctx.fill();
-
-      ctx.restore();
-    }
-
-    drawJuice() {
-      // Update & Draw Particles
+      // Particles & Floating Text
       this.particles = this.particles.filter(p => {
         const alive = p.update();
         if (alive) p.draw(ctx);
         return alive;
       });
 
-      // Update & Draw Floating Score Popups
       this.floatingTexts = this.floatingTexts.filter(t => {
         const alive = t.update();
         if (alive) t.draw(ctx);
         return alive;
       });
+
+      ctx.restore();
     }
 
-    // ------------------------------------------------------------------------
-    // Event Listeners & Input Bindings
-    // ------------------------------------------------------------------------
     bindEvents() {
-      // Window Resize (keep canvas crisp)
-      window.addEventListener('resize', () => {
-        this.setupCanvas();
-      });
+      this.startBtn.addEventListener('click', () => this.start());
+      this.resumeBtn.addEventListener('click', () => this.resume());
+      this.restartFromPauseBtn.addEventListener('click', () => this.start());
+      this.playAgainBtn.addEventListener('click', () => this.start());
 
-      // Keyboard Controls
-      window.addEventListener('keydown', (e) => {
-        const key = e.code || e.key;
+      this.modeToggleBtn.addEventListener('click', () => this.toggleBoundaryMode());
+      this.soundToggleBtn.addEventListener('click', () => this.toggleSound());
 
-        // Prevent browser scrolling on gaming keys
-        if (['Space', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(key)) {
-          e.preventDefault();
-        }
-
-        switch (key) {
-          case 'ArrowUp':
-          case 'KeyW':
-            this.queueDirection(DIRECTIONS.UP);
-            break;
-          case 'ArrowDown':
-          case 'KeyS':
-            this.queueDirection(DIRECTIONS.DOWN);
-            break;
-          case 'ArrowLeft':
-          case 'KeyA':
-            this.queueDirection(DIRECTIONS.LEFT);
-            break;
-          case 'ArrowRight':
-          case 'KeyD':
-            this.queueDirection(DIRECTIONS.RIGHT);
-            break;
-          case 'Space':
-            if (this.state === GAME_STATE.IDLE || this.state === GAME_STATE.GAME_OVER) {
-              this.start();
-            } else if (this.state === GAME_STATE.PLAYING || this.state === GAME_STATE.PAUSED) {
-              this.togglePause();
-            }
-            break;
-          case 'KeyP':
-          case 'Escape':
-            this.togglePause();
-            break;
-          case 'KeyM':
-            this.toggleSound();
-            break;
-        }
-      });
-
-      // Overlay Action Buttons
-      startBtn.addEventListener('click', () => this.start());
-      resumeBtn.addEventListener('click', () => this.resume());
-      restartFromPauseBtn.addEventListener('click', () => this.start());
-      playAgainBtn.addEventListener('click', () => this.start());
-
-      // Header Actions
-      modeToggleBtn.addEventListener('click', () => this.toggleBoundaryMode());
-      soundToggleBtn.addEventListener('click', () => this.toggleSound());
-
-      // Help Modal Dialog
-      helpBtn.addEventListener('click', () => {
-        if (typeof helpModal.showModal === 'function') {
-          helpModal.showModal();
-        } else {
-          helpModal.setAttribute('open', '');
-        }
-      });
-
-      const closeModal = () => {
-        if (typeof helpModal.close === 'function') {
-          helpModal.close();
-        } else {
-          helpModal.removeAttribute('open');
-        }
-      };
-
-      closeModalBtn.addEventListener('click', closeModal);
-      modalOkBtn.addEventListener('click', closeModal);
-      helpModal.addEventListener('click', (e) => {
-        if (e.target === helpModal) closeModal();
-      });
-
-      // Virtual D-Pad Touch Handlers
-      const bindDpad = (element, dir) => {
-        const handler = (e) => {
+      // Modern D-Pad
+      const bind = (id, dir) => {
+        const el = document.getElementById(id);
+        if (!el) return;
+        el.addEventListener('pointerdown', (e) => {
           e.preventDefault();
           this.queueDirection(dir);
-          element.classList.add('active');
-          setTimeout(() => element.classList.remove('active'), 150);
-        };
-        element.addEventListener('pointerdown', handler);
+          el.classList.add('active');
+          setTimeout(() => el.classList.remove('active'), 150);
+        });
       };
+      bind('v2-dpad-up', DIRECTIONS.UP);
+      bind('v2-dpad-down', DIRECTIONS.DOWN);
+      bind('v2-dpad-left', DIRECTIONS.LEFT);
+      bind('v2-dpad-right', DIRECTIONS.RIGHT);
 
-      bindDpad(dpadUp, DIRECTIONS.UP);
-      bindDpad(dpadDown, DIRECTIONS.DOWN);
-      bindDpad(dpadLeft, DIRECTIONS.LEFT);
-      bindDpad(dpadRight, DIRECTIONS.RIGHT);
-
-      dpadCenter.addEventListener('pointerdown', (e) => {
+      document.getElementById('v2-dpad-center').addEventListener('pointerdown', (e) => {
         e.preventDefault();
         this.togglePause();
       });
 
-      // Mobile Touch Swipe Detection on Board Container
-      let touchStartX = 0;
-      let touchStartY = 0;
-      const minSwipeDistance = 24;
-
-      boardContainer.addEventListener('touchstart', (e) => {
+      // Swipe Gestures
+      let sx = 0, sy = 0;
+      this.boardContainer.addEventListener('touchstart', (e) => {
         if (e.touches.length > 0) {
-          touchStartX = e.touches[0].clientX;
-          touchStartY = e.touches[0].clientY;
+          sx = e.touches[0].clientX;
+          sy = e.touches[0].clientY;
         }
       }, { passive: true });
 
-      boardContainer.addEventListener('touchmove', (e) => {
-        // Prevent bounce scroll when interacting with game board
+      this.boardContainer.addEventListener('touchmove', (e) => {
         if (e.cancelable) e.preventDefault();
       }, { passive: false });
 
-      boardContainer.addEventListener('touchend', (e) => {
+      this.boardContainer.addEventListener('touchend', (e) => {
         if (e.changedTouches.length === 0) return;
-        const touchEndX = e.changedTouches[0].clientX;
-        const touchEndY = e.changedTouches[0].clientY;
+        const dx = e.changedTouches[0].clientX - sx;
+        const dy = e.changedTouches[0].clientY - sy;
+        const adx = Math.abs(dx);
+        const ady = Math.abs(dy);
 
-        const diffX = touchEndX - touchStartX;
-        const diffY = touchEndY - touchStartY;
-        const absX = Math.abs(diffX);
-        const absY = Math.abs(diffY);
-
-        if (Math.max(absX, absY) > minSwipeDistance) {
-          if (absX > absY) {
-            // Horizontal Swipe
-            if (diffX > 0) {
-              this.queueDirection(DIRECTIONS.RIGHT);
-            } else {
-              this.queueDirection(DIRECTIONS.LEFT);
-            }
+        if (Math.max(adx, ady) > 22) {
+          if (adx > ady) {
+            this.queueDirection(dx > 0 ? DIRECTIONS.RIGHT : DIRECTIONS.LEFT);
           } else {
-            // Vertical Swipe
-            if (diffY > 0) {
-              this.queueDirection(DIRECTIONS.DOWN);
-            } else {
-              this.queueDirection(DIRECTIONS.UP);
-            }
+            this.queueDirection(dy > 0 ? DIRECTIONS.DOWN : DIRECTIONS.UP);
           }
         } else {
-          // Tap on board to start/pause
-          if (this.state === GAME_STATE.IDLE || this.state === GAME_STATE.GAME_OVER) {
+          if (this.state === 'IDLE' || this.state === 'GAME_OVER') {
             this.start();
           }
         }
@@ -1222,9 +1224,185 @@
   }
 
   // --------------------------------------------------------------------------
-  // Bootstrap Application on DOM Ready
+  // CENTRAL HUB MANAGER & ROUTER
+  // --------------------------------------------------------------------------
+  class HubManager {
+    constructor() {
+      this.activeView = 'hub'; // 'hub' | 'v1' | 'v2'
+
+      this.hubView = document.getElementById('hub-view');
+      this.v1View = document.getElementById('v1-view');
+      this.v2View = document.getElementById('v2-view');
+
+      this.v1Card = document.getElementById('select-v1-card');
+      this.v2Card = document.getElementById('select-v2-card');
+
+      this.hubV1Best = document.getElementById('hub-v1-best');
+      this.hubV2Best = document.getElementById('hub-v2-best');
+
+      this.v1BackBtn = document.getElementById('v1-back-btn');
+      this.v2BackBtn = document.getElementById('v2-back-btn');
+
+      // Shared Help Modal
+      this.helpBtn = document.getElementById('v2-help-btn');
+      this.helpModal = document.getElementById('help-modal');
+      this.closeModalBtn = document.getElementById('close-modal-btn');
+      this.modalOkBtn = document.getElementById('modal-ok-btn');
+
+      // Initialize Engines
+      this.classicGame = new ClassicSnakeGame();
+      this.nextGenGame = new NextGenSnakeGame();
+
+      this.bindRouter();
+      this.updateHubScores();
+    }
+
+    updateHubScores() {
+      try {
+        const v1High = localStorage.getItem(STORAGE_KEYS.V1_HIGH) || '0';
+        const v2High = localStorage.getItem(STORAGE_KEYS.V2_HIGH) || '0';
+        this.hubV1Best.textContent = v1High.padStart(3, '0');
+        this.hubV2Best.textContent = v2High.padStart(3, '0');
+      } catch (e) {}
+    }
+
+    navigateTo(target) {
+      if (this.activeView === target) return;
+
+      // Cleanup current view
+      if (this.activeView === 'v1') {
+        this.classicGame.stop();
+      } else if (this.activeView === 'v2') {
+        this.nextGenGame.stop();
+      }
+
+      this.activeView = target;
+
+      // Update visibility classes
+      this.hubView.classList.toggle('hidden', target !== 'hub');
+      this.v1View.classList.toggle('hidden', target !== 'v1');
+      this.v2View.classList.toggle('hidden', target !== 'v2');
+
+      if (target === 'hub') {
+        this.updateHubScores();
+      } else if (target === 'v1') {
+        this.classicGame.setupCanvas();
+        this.classicGame.initIdleState();
+      } else if (target === 'v2') {
+        this.nextGenGame.setupCanvas();
+        this.nextGenGame.initIdleBoard();
+      }
+    }
+
+    bindRouter() {
+      // Hub Card Selections
+      this.v1Card.addEventListener('click', () => this.navigateTo('v1'));
+      this.v2Card.addEventListener('click', () => this.navigateTo('v2'));
+
+      // Keyboard selection in hub
+      this.v1Card.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          this.navigateTo('v1');
+        }
+      });
+      this.v2Card.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          this.navigateTo('v2');
+        }
+      });
+
+      // Back Buttons inside games
+      this.v1BackBtn.addEventListener('click', () => this.navigateTo('hub'));
+      this.v2BackBtn.addEventListener('click', () => this.navigateTo('hub'));
+
+      // Help Modal
+      const openModal = () => {
+        if (typeof this.helpModal.showModal === 'function') {
+          this.helpModal.showModal();
+        } else {
+          this.helpModal.setAttribute('open', '');
+        }
+      };
+      const closeModal = () => {
+        if (typeof this.helpModal.close === 'function') {
+          this.helpModal.close();
+        } else {
+          this.helpModal.removeAttribute('open');
+        }
+      };
+
+      this.helpBtn.addEventListener('click', openModal);
+      this.closeModalBtn.addEventListener('click', closeModal);
+      this.modalOkBtn.addEventListener('click', closeModal);
+      this.helpModal.addEventListener('click', (e) => {
+        if (e.target === this.helpModal) closeModal();
+      });
+
+      // Window Resize Listener for Canvases
+      window.addEventListener('resize', () => {
+        if (this.activeView === 'v1') this.classicGame.setupCanvas();
+        if (this.activeView === 'v2') this.nextGenGame.setupCanvas();
+      });
+
+      // Global Keyboard Dispatcher
+      window.addEventListener('keydown', (e) => {
+        const key = e.code || e.key;
+
+        // Prevent scrolling on arrows/space
+        if (['Space', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(key)) {
+          e.preventDefault();
+        }
+
+        // Return to Hub with Escape if in a game and paused/idle/over
+        if ((key === 'Escape' || key === 'KeyB') && this.activeView !== 'hub') {
+          if (this.activeView === 'v1') {
+            this.navigateTo('hub');
+            return;
+          }
+          if (this.activeView === 'v2' && this.nextGenGame.state !== 'PLAYING') {
+            this.navigateTo('hub');
+            return;
+          }
+        }
+
+        // Route inputs to active game engine
+        if (this.activeView === 'v1') {
+          switch (key) {
+            case 'ArrowUp': case 'KeyW': this.classicGame.queueDirection(DIRECTIONS.UP); break;
+            case 'ArrowDown': case 'KeyS': this.classicGame.queueDirection(DIRECTIONS.DOWN); break;
+            case 'ArrowLeft': case 'KeyA': this.classicGame.queueDirection(DIRECTIONS.LEFT); break;
+            case 'ArrowRight': case 'KeyD': this.classicGame.queueDirection(DIRECTIONS.RIGHT); break;
+            case 'Space': case 'Enter':
+              if (!this.classicGame.isPlaying) this.classicGame.start();
+              break;
+          }
+        } else if (this.activeView === 'v2') {
+          switch (key) {
+            case 'ArrowUp': case 'KeyW': this.nextGenGame.queueDirection(DIRECTIONS.UP); break;
+            case 'ArrowDown': case 'KeyS': this.nextGenGame.queueDirection(DIRECTIONS.DOWN); break;
+            case 'ArrowLeft': case 'KeyA': this.nextGenGame.queueDirection(DIRECTIONS.LEFT); break;
+            case 'ArrowRight': case 'KeyD': this.nextGenGame.queueDirection(DIRECTIONS.RIGHT); break;
+            case 'Space':
+              if (this.nextGenGame.state === 'IDLE' || this.nextGenGame.state === 'GAME_OVER') {
+                this.nextGenGame.start();
+              } else {
+                this.nextGenGame.togglePause();
+              }
+              break;
+            case 'KeyP': this.nextGenGame.togglePause(); break;
+            case 'KeyM': this.nextGenGame.toggleSound(); break;
+          }
+        }
+      });
+    }
+  }
+
+  // --------------------------------------------------------------------------
+  // Bootstrap Application
   // --------------------------------------------------------------------------
   document.addEventListener('DOMContentLoaded', () => {
-    window.snakeGameInstance = new SnakeGame();
+    window.snakeArcadeHub = new HubManager();
   });
 })();

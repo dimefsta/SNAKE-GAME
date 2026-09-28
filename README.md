@@ -1,73 +1,69 @@
-# 🐍 Snake 2.0 // Next-Gen Arcade
+# 🐍 Snake Arcade // Classic vs Next-Gen
 
-A modern, minimalist, and responsive reimagining of the classic Snake arcade game built with pure vanilla HTML5, CSS3, and JavaScript.
+A modern, minimalist, and responsive multi-game arcade hub featuring **Classic Retro 1997 Snake (v1)** and **Next-Gen Cyber 2026 Snake (v2)** built with pure vanilla HTML5, CSS3, and JavaScript.
 
 Live Preview: [snake-game-red.vercel.app](https://snake-game-red.vercel.app)
 
 ---
 
-## ✨ Features in v2
+## 🕹️ Game Hub & Selection Menu
 
-### 1. Minimalist Cyber-Dark Aesthetics
-- **Sleek Glassmorphism**: Translucent frosted panels with `backdrop-filter: blur(16px)` and subtle borders.
-- **Neon Glows**: Dynamic lighting with cyber emerald, rose apple, and golden bonus accents.
-- **Directional Eyes & Animated Snake**: The snake dynamically looks in the direction of travel with tapered tail rendering.
-- **Responsive Layout**: High-DPI (`devicePixelRatio`) canvas that scales from 320px mobile screens up to 4K displays.
+When launching the app, players are greeted by a sleek, minimalist dark-mode **Game Hub**:
 
-### 2. Dual Boundary Modes
-- **🛡️ Classic Mode**: True to retro rules — crashing into outer walls causes an immediate game over.
-- **🌐 Wrap-around Mode**: Outer walls turn into portals; passing through teleports the snake to the opposite side.
-- Seamlessly toggleable at any time via the header bar or keyboard shortcut.
+1. **Option 1: Classic Snake (v1)**
+   - Authentic 90s monochrome Nokia / GameBoy LCD green phosphor screen.
+   - Chunky pixel block snake, classic blinking food, and retro `VT323` score displays.
+   - Pure classic rules: fixed game speed and unforgiving wall collisions.
+   - Cleaned up from original legacy bugs (no 180° instant suicide, safe inputs, persistent high score).
 
-### 3. Dynamic Levels & Visual Juice
-- **Progressive Speed Scaling**: Speeds up every 5 apples eaten with ascending level notifications.
-- **Golden Bonus Fruits**: Timed bonus items with shrinking countdown rings that award +30 bonus points!
-- **Particle System**: Burst effects upon eating food and dramatic collision shockwaves on game over.
-- **Web Audio API Synth**: Native, zero-asset synthesized sound effects (pops, chimes, and crash impacts) with persistent mute toggle.
-- **Persistent High Score**: Retained across browser sessions using `localStorage`.
+2. **Option 2: Next-Gen Snake (v2)**
+   - High-DPI hardware-accelerated Canvas with smooth 60+ FPS animations.
+   - **Boundary Modes**: 🛡️ Classic Wall Death vs 🌐 Portal Wrap-around Mode.
+   - **Dynamic Progression**: Speed scaling and ascending levels every 5 apples.
+   - **Golden Bonus Apples**: Rare timed fruits (+30 points) with shrinking circular timer ring.
+   - **Visual Juice**: Directional snake eyes, neon particle bursts, floating score popups, and collision screen shake.
+   - **Native Web Audio Synth**: Synthesized pops, chimes, and crash impacts with persistent mute toggle.
 
-### 4. Mobile & Touch Optimized
-- **Intuitive Gestures**: Responsive swipe detection in all 4 directions.
-- **Virtual D-Pad**: Tactile on-screen glassmorphism buttons with active feedback and haptic vibration (`navigator.vibrate`).
-- Zero bounce-scroll interference on mobile viewports.
+3. **Seamless In-Game Navigation ("← Back to Menu")**
+   - Both game versions feature an elegant, non-intrusive "← Menu" button in the header.
+   - Instantly return to the hub at any time without page reloads or broken state loops.
+   - Dedicated high scores for both game modes are tracked and displayed on the Hub selection cards!
 
 ---
 
-## 🎮 Controls
+## 🎮 Universal Controls
 
 | Action | Desktop Controls | Mobile / Touch |
 | :--- | :--- | :--- |
-| **Move Up** | <kbd>↑</kbd> or <kbd>W</kbd> | Swipe Up / D-Pad Up |
-| **Move Down** | <kbd>↓</kbd> or <kbd>S</kbd> | Swipe Down / D-Pad Down |
-| **Move Left** | <kbd>←</kbd> or <kbd>A</kbd> | Swipe Left / D-Pad Left |
-| **Move Right** | <kbd>→</kbd> or <kbd>D</kbd> | Swipe Right / D-Pad Right |
-| **Start / Restart** | <kbd>Space</kbd> / <kbd>Enter</kbd> | Tap Board / Start Button |
-| **Pause / Resume** | <kbd>P</kbd> or <kbd>Esc</kbd> | Center D-Pad / Header |
-| **Toggle Mute** | <kbd>M</kbd> | Speaker Icon Button |
-| **Toggle Mode** | Click Mode Pill | Header Button |
+| **Move Up / Down / Left / Right** | <kbd>↑</kbd><kbd>↓</kbd><kbd>←</kbd><kbd>→</kbd> or <kbd>W</kbd><kbd>S</kbd><kbd>A</kbd><kbd>D</kbd> | Swipe gestures or on-screen D-Pad |
+| **Start / Restart** | <kbd>Space</kbd> or <kbd>Enter</kbd> | Tap board / Tap Start button |
+| **Pause / Resume (v2)** | <kbd>P</kbd> | Center D-Pad button / Overlay |
+| **Return to Menu** | <kbd>Esc</kbd> or <kbd>B</kbd> | Tap "← Menu" button |
+| **Toggle Mute (v2)** | <kbd>M</kbd> | Speaker Icon Button |
+| **Toggle Boundary Mode (v2)** | Click Mode Pill | Header Button |
 
 ---
 
-## 📁 Project Structure
+## 📁 Project Architecture
 
 ```
-├── index.html       # Accessible semantic markup with glassmorphic overlays and D-Pad
-├── style.css        # Modern CSS design system, neon dark-mode tokens, and responsive layout
-├── script.js        # High-DPI Canvas engine, input buffer, state machine, particle & audio synth
+├── index.html       # Single-Page Architecture: Hub, Classic v1, and Next-Gen v2 views
+├── style.css        # Unified Design System: Cyberpunk Dark Mode & Retro LCD CRT
 ├── styles.css       # Forwarding stylesheet for backwards compatibility
-└── logo.png         # Legacy brand asset
+├── script.js        # Central Router, Classic v1 Engine, Next-Gen v2 Engine, and Web Audio Synth
+└── logo.png         # Brand asset
 ```
 
 ---
 
 ## 🚀 Running Locally
 
-No dependencies or build steps required. Simply open `index.html` in any modern web browser or serve via any static server:
+Open `index.html` in any browser or launch a lightweight server:
 
 ```bash
 # Using Python
 python -m http.server 8000
 
-# Using Node / npx
+# Using Node
 npx serve .
 ```
